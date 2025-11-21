@@ -104,7 +104,13 @@ if(!$user){ header('Location: login.php'); exit; }
         <div class="text-muted">Quản lý thông tin, mật khẩu & địa chỉ giao hàng</div>
       </div>
       <div class="text-end">
-        <div class="small text-muted">Đăng nhập: <strong><?=htmlspecialchars($user['email']??'')?></strong></div>
+        <div class="small text-muted mb-2">
+          Đăng nhập: <strong><?=htmlspecialchars($user['email']??'')?></strong>
+        </div>
+        <!-- NÚT XEM LỊCH SỬ MUA HÀNG -->
+        <a href="orders.php" class="btn btn-sm btn-outline-primary">
+          Xem lịch sử mua hàng
+        </a>
       </div>
     </div>
 
@@ -150,9 +156,8 @@ if(!$user){ header('Location: login.php'); exit; }
               <div class="col-12 d-grid d-md-block">
                 <button class="btn btn-warning">Đổi mật khẩu</button>
                 <a class="btn btn-link" href="forgot-password.php?email=<?=urlencode($user['email'] ?? '')?>">
-                Khôi phục mật khẩu?
+                  Khôi phục mật khẩu?
                 </a>
-
               </div>
             </form>
           </div>
@@ -175,7 +180,9 @@ if(!$user){ header('Location: login.php'); exit; }
                   <div class="pe-2">
                     <div class="d-flex align-items-center gap-2">
                       <strong><?=htmlspecialchars($a['label'])?></strong>
-                      <?php if(!empty($a['is_default'])): ?><span class="badge text-bg-primary">Mặc định</span><?php endif; ?>
+                      <?php if(!empty($a['is_default'])): ?>
+                        <span class="badge text-bg-primary">Mặc định</span>
+                      <?php endif; ?>
                     </div>
                     <div class="text-muted small mt-1">
                       <?=htmlspecialchars($a['receiver_name'])?><?= $a['phone'] ? ' • '.htmlspecialchars($a['phone']) : '' ?><br>
@@ -212,7 +219,6 @@ if(!$user){ header('Location: login.php'); exit; }
                 <label class="form-label">Điện thoại</label>
                 <input name="phone" class="form-control" placeholder="09xx xxx xxx" required>
               </div>
-              
 
               <div class="col-12">
                 <label class="form-label">Địa chỉ cụ thể *</label>

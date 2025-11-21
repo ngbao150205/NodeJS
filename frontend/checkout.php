@@ -503,9 +503,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isAjax) {
                 $conn->commit();
 
                 // Xoá giỏ, xoá coupon
-                $_SESSION['cart']['items'] = [];
+                if (!empty($_SESSION['cart']['items'])) {
+                    foreach ($_SESSION['cart']['items'] as $key => $it) {
+                        if (!empty($it['selected'])) {
+                            unset($_SESSION['cart']['items'][$key]);
+                        }
+                    }
+                }
+
+                // Xoá coupon trong session
                 $_SESSION['coupon'] = null;
-                $cartItems = [];
+                $cartItems     = [];
                 $couponSession = null;
 
                 $orderPlaced = true;
