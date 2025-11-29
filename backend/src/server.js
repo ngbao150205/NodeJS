@@ -7,12 +7,20 @@ const morgan = require('morgan');
 const compression = require('compression');
 const { initDB } = require('./config/db');
 const { initSocial } = require('./social');
+const ordersRoutes = require('./routes/orders');
+const adminDashboardRoutes = require('./routes/adminDashboard');
+const adminCategoriesRoutes = require('./routes/adminCategories');
+const adminUsersRouter = require('./routes/adminUsers');
+const adminOrdersRouter = require('./routes/adminOrders');
+const adminDiscountsRouter = require('./routes/adminDiscounts');
+
 
 const app = express();
 
 /* ===== Middlewares ===== */
 app.use(morgan('dev'));
 app.use(compression());
+
 
 // cấu hình CORS – cho phép PHP chạy ở 8000 (hoặc chỉnh theo thực tế)
 const ALLOW_ORIGINS = [
@@ -42,9 +50,22 @@ app.use('/api/home', require('./routes/home'));
 app.use('/api/products', require('./routes/products'));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/addresses', require('./routes/addresses'));
+app.use('/api/orders', ordersRoutes);
 
 // CHÚ Ý: file phải là ./routes/product-detail.js (không phải product-details)
 app.use('/api/product', require('./routes/product-detail'));
+
+app.use('/api/admin/dashboard', adminDashboardRoutes);
+
+app.use('/api/admin/products', require('./routes/adminProducts'));
+
+app.use('/api/admin/categories', adminCategoriesRoutes);
+
+app.use('/api/admin/users', adminUsersRouter);
+
+app.use('/api/admin/orders', adminOrdersRouter);
+
+app.use('/api/admin/discount-codes', adminDiscountsRouter);
 
 /* ===== Social OAuth (Passport) ===== */
 initSocial(app);

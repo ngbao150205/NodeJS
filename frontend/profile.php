@@ -102,6 +102,9 @@ if(!$user){ header('Location: login.php'); exit; }
         <span class="badge badge-soft">TÀI KHOẢN</span>
         <h3 class="mt-2 mb-0">Hồ sơ cá nhân</h3>
         <div class="text-muted">Quản lý thông tin, mật khẩu & địa chỉ giao hàng</div>
+        <?php if ($isAuth && ($authUser['role'] ?? '') === 'admin'): ?>
+            <a href="admin-dashboard.php" class="btn btn-sm btn-warning">Admin</a>
+        <?php endif; ?>
       </div>
       <div class="text-end">
         <div class="small text-muted mb-2">

@@ -5,8 +5,10 @@ ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 require __DIR__ . '/lib/api.php';
-
 $apiBase = 'http://localhost:8080/api';
+
+// dùng chung kiểm tra đăng nhập + $isAuth, $userName
+require __DIR__.'/_auth_header.php';
 
 // ================== LẤY QUERY STRING ==================
 $page  = max(1, (int)($_GET['page'] ?? 1));
@@ -172,7 +174,7 @@ function page_link($page, $baseQs)
     </style>
 </head>
 <body>
-<!-- Navbar đơn giản -->
+<!-- Navbar -->
 <nav class="navbar navbar-expand-lg sticky-top">
     <div class="container">
         <a class="navbar-brand fw-bold" style="color:var(--brand)" href="index.php">E-Store<span class="text-dark">.PC</span></a>
@@ -185,6 +187,26 @@ function page_link($page, $baseQs)
                 <li class="nav-item"><a class="nav-link active" href="products.php">Sản phẩm</a></li>
                 <li class="nav-item"><a class="nav-link" href="cart.php">Giỏ hàng</a></li>
             </ul>
+
+            <!-- ✅ Nút tài khoản: Ẩn/hiện theo trạng thái đăng nhập -->
+            <div class="d-flex align-items-center gap-2">
+              <?php if ($isAuth): ?>
+                <div class="dropdown">
+                  <button class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">
+                    👋 <?= htmlspecialchars($userName) ?>
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item" href="profile.php">Hồ sơ cá nhân</a></li>
+                    <li><a class="dropdown-item" href="orders.php">Lịch sử mua hàng</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item text-danger" href="logout.php">Đăng xuất</a></li>
+                  </ul>
+                </div>
+              <?php else: ?>
+                <a href="login.php" class="btn btn-sm btn-outline-primary">Đăng nhập</a>
+                <a href="register.php" class="btn btn-sm btn-brand">Đăng ký</a>
+              <?php endif; ?>
+            </div>
         </div>
     </div>
 </nav>
@@ -329,8 +351,6 @@ function page_link($page, $baseQs)
 
                     // 2) Fallback nếu không có file tĩnh
                     if ($img === null) {
-                        // có thể dùng thêm cover_image / images[] nếu API trả về
-                        // $img = $p['cover_image'] ?? ($p['images'][0] ?? 'acess/product/no-image.jpg');
                         $img = 'acess/product/no-image.jpg';
                     }
 

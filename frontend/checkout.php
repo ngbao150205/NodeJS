@@ -37,20 +37,20 @@ function db() {
     return $conn;
 }
 
-// ====== HÀM TÍNH TỔNG GIỎ (dùng mảng item truyền vào) ======
+// ====== HÀM TÍNH TỔNG GIỎ (KHÔNG TÍNH THUẾ, THUẾ = 0) ======
 function cart_base_totals(array $items): array {
     $subtotal = 0;
     foreach ($items as $it) {
         $subtotal += (int)$it['price'] * (int)$it['qty'];
     }
-    $tax = (int) round($subtotal * 0.10);
+    $tax = 0; // Bỏ thuế
     $shipping = ($subtotal > 0 && $subtotal < 2000000) ? 30000 : 0;
     $total = $subtotal + $tax + $shipping;
     return compact('subtotal','tax','shipping','total');
 }
 
 /**
- * Tính tổng có áp dụng giảm giá % (percentOff).
+ * Tính tổng có áp dụng giảm giá % (coupon).
  * percentOff: ví dụ 10 -> giảm 10% trên total.
  */
 function cart_totals_with_percent(array $items, int $percentOff): array {
@@ -68,6 +68,108 @@ function cart_totals_with_percent(array $items, int $percentOff): array {
 
 function format_vnd($n) {
     return number_format((int)$n, 0, ',', '.').'đ';
+}
+
+// ====== HÀM GỬI EMAIL XÁC NHẬN ĐƠN HÀNG (dùng mail() thuần PHP) ======
+function send_order_confirmation_email(
+    string $toEmail,
+    string $toName,
+    int $orderId,
+    array $totalsBeforePoints, // totals sau coupon, trước điểm
+    int $pointDiscount,
+    int $finalAmount,          // số tiền phải thanh toán cuối cùng
+    array $items,
+    string $receiverName,
+    string $shippingAddress
+): bool {
+    if (!filter_var($toEmail, FILTER_VALIDATE_EMAIL)) {
+        return false;
+    }
+
+    $subject = "Xác nhận đơn hàng #{$orderId} - E-Store.PC";
+
+    // Build bảng sản phẩm
+    $rowsHtml = '';
+    foreach ($items as $it) {
+        $name  = htmlspecialchars($it['name'] ?? '', ENT_QUOTES, 'UTF-8');
+        $qty   = (int)($it['qty'] ?? 1);
+        $price = (int)($it['price'] ?? 0);
+        $lineTotal = $price * $qty;
+
+        $attrsText = '';
+        if (!empty($it['attrs']) && is_array($it['attrs'])) {
+            $chunks = [];
+            foreach ($it['attrs'] as $k => $v) {
+                $chunks[] = htmlspecialchars($k, ENT_QUOTES, 'UTF-8') . ': ' .
+                           htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
+            }
+            $attrsText = implode(', ', $chunks);
+        }
+
+        $rowsHtml .= '<tr>'.
+            '<td style="padding:8px;border:1px solid #e5e7eb;">'.$name.
+                ($attrsText ? '<br><small style="color:#6b7280;">'.$attrsText.'</small>' : '').
+            '</td>'.
+            '<td style="padding:8px;border:1px solid #e5e7eb;text-align:center;">'.$qty.'</td>'.
+            '<td style="padding:8px;border:1px solid #e5e7eb;text-align:right;">'.format_vnd($price).'</td>'.
+            '<td style="padding:8px;border:1px solid #e5e7eb;text-align:right;">'.format_vnd($lineTotal).'</td>'.
+        '</tr>';
+    }
+
+    $sub            = format_vnd($totalsBeforePoints['subtotal'] ?? 0);
+    $tax            = format_vnd($totalsBeforePoints['tax'] ?? 0);
+    $ship           = format_vnd($totalsBeforePoints['shipping'] ?? 0);
+    $couponDiscount = format_vnd($totalsBeforePoints['discount'] ?? 0);
+    $pointsDiscount = format_vnd($pointDiscount);
+    $final          = format_vnd($finalAmount);
+    $percentCoupon  = (int)($totalsBeforePoints['percent'] ?? 0);
+
+    $hToName  = htmlspecialchars($toName, ENT_QUOTES, 'UTF-8');
+    $hReceiver= htmlspecialchars($receiverName, ENT_QUOTES, 'UTF-8');
+    $hAddress = htmlspecialchars($shippingAddress, ENT_QUOTES, 'UTF-8');
+
+    $body  = '<html><body style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#111827;">';
+    $body .= '<h2 style="color:#0ea5e9;">Cảm ơn bạn đã đặt hàng tại E-Store.PC</h2>';
+    $body .= '<p>Xin chào <strong>'.$hToName.'</strong>,</p>';
+    $body .= '<p>Chúng tôi đã nhận được đơn hàng <strong>#'.$orderId.'</strong> của bạn.</p>';
+    $body .= '<p><strong>Thông tin giao hàng:</strong><br>'.
+             'Người nhận: '.$hReceiver.'<br>'.
+             'Địa chỉ: '.$hAddress.'</p>';
+
+    $body .= '<h3 style="margin-top:20px;">Chi tiết đơn hàng</h3>';
+    $body .= '<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;max-width:700px;">'.
+             '<thead>'.
+             '<tr>'.
+             '<th style="padding:8px;border:1px solid #e5e7eb;text-align:left;">Sản phẩm</th>'.
+             '<th style="padding:8px;border:1px solid #e5e7eb;text-align:center;">SL</th>'.
+             '<th style="padding:8px;border:1px solid #e5e7eb;text-align:right;">Đơn giá</th>'.
+             '<th style="padding:8px;border:1px solid #e5e7eb;text-align:right;">Thành tiền</th>'.
+             '</tr>'.
+             '</thead>'.
+             '<tbody>'.$rowsHtml.'</tbody>'.
+             '</table>';
+
+    $body .= '<p style="margin-top:16px;">'.
+             'Tạm tính: <strong>'.$sub.'</strong><br>'.
+             'Thuế: <strong>'.$tax.'</strong><br>'.
+             'Phí vận chuyển: <strong>'.$ship.'</strong><br>'.
+             'Giảm giá từ mã ('.$percentCoupon.'%): <strong>-'.$couponDiscount.'</strong><br>'.
+             'Giảm từ điểm thưởng: <strong>-'.$pointsDiscount.'</strong><br>'.
+             'Tổng thanh toán: <strong style="color:#0ea5e9;font-size:16px;">'.$final.'</strong>'.
+             '</p>';
+
+    $body .= '<p style="margin-top:16px;font-size:12px;color:#6b7280;">'.
+             'Nếu bạn không thực hiện đơn hàng này, vui lòng liên hệ ngay với chúng tôi để được hỗ trợ.'.
+             '</p>';
+
+    $body .= '<p>Trân trọng,<br>Đội ngũ <strong>E-Store.PC</strong></p>';
+    $body .= '</body></html>';
+
+    $headers  = "MIME-Version: 1.0\r\n";
+    $headers .= "Content-type: text/html; charset=UTF-8\r\n";
+    $headers .= "From: E-Store.PC <no-reply@estorepc.local>\r\n";
+
+    return @mail($toEmail, $subject, $body, $headers);
 }
 
 // ====== KIỂM TRA ĐĂNG NHẬP (TOKEN + /auth/me) ======
@@ -95,12 +197,15 @@ try {
     clear_token();
 }
 
-// ====== LẤY ĐỊA CHỈ ĐÃ LƯU (NẾU ĐĂNG NHẬP) ======
+// ====== LẤY ĐỊA CHỈ & ĐIỂM THƯỞNG (NẾU ĐĂNG NHẬP) ======
 $userAddresses  = [];
 $defaultAddress = null;
+$currentLoyaltyPoints = 0; // điểm hiện có (1 điểm = 1.000đ)
 
 if ($isAuth && $authUserId) {
     $conn = db();
+
+    // Lấy địa chỉ
     $stmt = $conn->prepare("
         SELECT * FROM addresses
         WHERE user_id = ?
@@ -125,6 +230,20 @@ if ($isAuth && $authUserId) {
             $defaultAddress = $userAddresses[0];
         }
     }
+
+    // Lấy điểm thưởng hiện có (tính theo POINT, không phải tiền)
+    $stmt = $conn->prepare("SELECT loyalty_points FROM users WHERE id = ? LIMIT 1");
+    if ($stmt) {
+        $stmt->bind_param('i', $authUserId);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        if ($row = $res->fetch_assoc()) {
+            $currentLoyaltyPoints = (int)$row['loyalty_points'];
+        }
+        $stmt->close();
+    }
+} else {
+    $conn = db();
 }
 
 // ====== GIÁ TRỊ MẶC ĐỊNH CHO FORM ======
@@ -145,6 +264,7 @@ $errors = [];
 $orderPlaced = false;
 $orderId     = null;
 $newAccountPassword = null;
+$emailSent   = false;
 
 // ====== QUẢN LÝ COUPON TRONG SESSION ======
 if (!isset($_SESSION['coupon'])) {
@@ -188,7 +308,6 @@ if ($isAjax && $_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif ((int)$row['used_count'] >= (int)$row['max_uses']) {
                 $resp['message'] = 'Mã giảm giá đã hết lượt sử dụng.';
             } else {
-                // OK -> lưu vào session
                 $_SESSION['coupon'] = [
                     'code'        => $row['code'],
                     'percent_off' => (int)$row['percent_off'],
@@ -240,6 +359,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isAjax) {
         $address_label  = trim($_POST['address_label']  ?? $address_label);
         $chosenAddressId= (int)($_POST['address_id']    ?? 0);
 
+        $useLoyaltyFlag = !empty($_POST['use_loyalty_points']); // "1" hoặc "0"
+
         // VALIDATE
         if ($billing_name === '') {
             $errors[] = 'Vui lòng nhập họ tên người mua.';
@@ -257,7 +378,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isAjax) {
             $errors[] = 'Vui lòng nhập đầy đủ địa chỉ (địa chỉ, quận/huyện, tỉnh/thành phố).';
         }
 
-        // Nếu có lỗi -> không tạo đơn
         if (!$errors) {
             $conn = db();
             $conn->begin_transaction();
@@ -268,7 +388,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isAjax) {
                     $finalUserId = (int)$authUserId;
                 } else {
                     // Khách -> check email
-                    $stmt = $conn->prepare("SELECT id FROM users WHERE email = ? LIMIT 1");
+                    $stmt = $conn->prepare("SELECT id, loyalty_points FROM users WHERE email = ? LIMIT 1");
                     $stmt->bind_param('s', $billing_email);
                     $stmt->execute();
                     $res = $stmt->get_result();
@@ -285,9 +405,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isAjax) {
                         $role          = 'customer';
 
                         $stmt = $conn->prepare("
-                            INSERT INTO users (email, full_name, password_hash, provider, role, created_at, updated_at)
-                            VALUES (?, ?, ?, ?, ?, NOW(), NOW())
+                            INSERT INTO users (email, full_name, password_hash, provider, role, loyalty_points, created_at, updated_at)
+                            VALUES (?, ?, ?, ?, ?, 0, NOW(), NOW())
                         ");
+                        if (!$stmt) {
+                            throw new Exception('Lỗi SQL INSERT user: '.$conn->error);
+                        }
                         $stmt->bind_param('sssss', $billing_email, $billing_name, $passwordHash, $provider, $role);
                         $stmt->execute();
                         $finalUserId = (int)$conn->insert_id;
@@ -296,6 +419,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isAjax) {
                         $newAccountPassword = $plainPassword;
                     }
                 }
+
+                if (empty($finalUserId)) {
+                    throw new Exception('Không xác định được tài khoản người mua.');
+                }
+
+                // 1.1) Lấy lại điểm thưởng hiện tại của user (POINT)
+                $loyaltyPointsBefore = 0;
+                $stmt = $conn->prepare("SELECT loyalty_points FROM users WHERE id = ? LIMIT 1");
+                if (!$stmt) {
+                    throw new Exception('Lỗi SQL SELECT loyalty_points: '.$conn->error);
+                }
+                $stmt->bind_param('i', $finalUserId);
+                $stmt->execute();
+                $res = $stmt->get_result();
+                if ($row = $res->fetch_assoc()) {
+                    $loyaltyPointsBefore = (int)$row['loyalty_points'];
+                }
+                $stmt->close();
 
                 // 2) Địa chỉ: lưu/ cập nhật
                 $addressIdToUse = null;
@@ -307,6 +448,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isAjax) {
                             SET label = ?, receiver_name = ?, phone = ?, details = ?, district = ?, city = ?, postal_code = ?
                             WHERE id = ? AND user_id = ?
                         ");
+                        if (!$stmt) {
+                            throw new Exception('Lỗi SQL UPDATE addresses: '.$conn->error);
+                        }
                         $stmt->bind_param(
                             'sssssssii',
                             $address_label,
@@ -326,6 +470,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isAjax) {
                         // tạo địa chỉ mới
                         $isDefault = 0;
                         $stmt = $conn->prepare("SELECT COUNT(*) AS cnt FROM addresses WHERE user_id = ?");
+                        if (!$stmt) {
+                            throw new Exception('Lỗi SQL COUNT addresses: '.$conn->error);
+                        }
                         $stmt->bind_param('i', $finalUserId);
                         $stmt->execute();
                         $res = $stmt->get_result();
@@ -339,6 +486,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isAjax) {
                         }
                         if ($isDefault) {
                             $stmt = $conn->prepare("UPDATE addresses SET is_default = 0 WHERE user_id = ?");
+                            if (!$stmt) {
+                                throw new Exception('Lỗi SQL UPDATE is_default: '.$conn->error);
+                            }
                             $stmt->bind_param('i', $finalUserId);
                             $stmt->execute();
                             $stmt->close();
@@ -348,6 +498,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isAjax) {
                                 user_id, label, receiver_name, phone, details, district, city, postal_code, is_default, created_at, updated_at
                             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
                         ");
+                        if (!$stmt) {
+                            throw new Exception('Lỗi SQL INSERT addresses: '.$conn->error);
+                        }
                         $stmt->bind_param(
                             'isssssssi',
                             $finalUserId,
@@ -381,6 +534,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isAjax) {
                         WHERE code = ?
                         LIMIT 1
                     ");
+                    if (!$stmt) {
+                        throw new Exception('Lỗi SQL SELECT coupon: '.$conn->error);
+                    }
                     $stmt->bind_param('s', $appliedCode);
                     $stmt->execute();
                     $res = $stmt->get_result();
@@ -396,35 +552,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isAjax) {
                     }
                 }
 
-                // 4) Tính tổng cuối cùng với coupon (nếu có)
+                // 4) Tính tổng cuối cùng với coupon (CHƯA trừ điểm)
                 $totals = cart_totals_with_percent($cartItems, $appliedPercent);
-                $discountAmount = $totals['discount'];
-                $finalAmount    = $totals['final'];
+                $discountAmount    = $totals['discount'];     // giảm từ coupon (VND)
+                $amountBeforePoints= $totals['final'];        // tổng sau coupon (VND)
 
-                // 5) Tạo đơn hàng
+                // 5) Điểm thưởng: dùng hoặc không dùng (1 điểm = 1.000đ)
+                $loyaltyPointsUsed   = 0; // POINT
+                $loyaltyPointsEarned = 0; // POINT
+                $pointDiscount       = 0; // VND
+                $finalAmount         = $amountBeforePoints;
+
+                if ($useLoyaltyFlag && $loyaltyPointsBefore > 0) {
+                    // tổng tiền tối đa có thể giảm = số điểm * 1.000
+                    $maxDiscountFromPoints = $loyaltyPointsBefore * 1000;
+                    if ($maxDiscountFromPoints > 0) {
+                        // discount thô không vượt quá số tiền phải trả
+                        $rawDiscount = min($maxDiscountFromPoints, $amountBeforePoints);
+                        // số điểm thực sự dùng (làm tròn xuống theo 1.000đ)
+                        $pointsToUse = intdiv($rawDiscount, 1000);
+                        $pointDiscount = $pointsToUse * 1000;
+                        $loyaltyPointsUsed = $pointsToUse;
+                        $finalAmount = max(0, $amountBeforePoints - $pointDiscount);
+                    }
+                }
+
+                // 6) TÍCH LŨY 10% GIÁ TRỊ ĐƠN HÀNG CUỐI CÙNG (VND) → ĐỔI RA ĐIỂM
+                // ví dụ: finalAmount = 1.000.000 → 10% = 100.000 → 100 điểm
+                $loyaltyPointsEarned = (int) round(($finalAmount * 0.10) / 1000);
+
+                // 7) Tạo đơn hàng
                 $status = 'pending';
                 $stmt = $conn->prepare("
                     INSERT INTO orders (
                         user_id, email, full_name,
                         receiver_name, phone,
                         address_details, district, city, postal_code,
-                        subtotal, tax, shipping_fee, discount_amount, total_amount,
-                        coupon_code, status, created_at
+                        subtotal, tax, shipping_fee, discount_amount, point_discount, total_amount,
+                        coupon_code, loyalty_points_used, loyalty_points_earned,
+                        status, created_at
                     ) VALUES (
                         ?, ?, ?,
                         ?, ?,
                         ?, ?, ?, ?,
-                        ?, ?, ?, ?, ?,
-                        ?, ?, NOW()
+                        ?, ?, ?, ?, ?, ?,
+                        ?, ?, ?,
+                        ?, NOW()
                     )
                 ");
+                if (!$stmt) {
+                    throw new Exception('Lỗi SQL INSERT orders: '.$conn->error);
+                }
+
                 $subtotal      = $totals['subtotal'];
-                $tax           = $totals['tax'];
+                $tax           = $totals['tax'];          // 0
                 $shipping_fee  = $totals['shipping'];
                 $couponCodeDb  = $appliedCode;
 
                 $stmt->bind_param(
-                    'isssssssssiiiiss',
+                    'issssssssiiiiiisiis',
                     $finalUserId,
                     $billing_email,
                     $billing_name,
@@ -438,20 +624,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isAjax) {
                     $tax,
                     $shipping_fee,
                     $discountAmount,
+                    $pointDiscount,
                     $finalAmount,
                     $couponCodeDb,
+                    $loyaltyPointsUsed,
+                    $loyaltyPointsEarned,
                     $status
                 );
                 $stmt->execute();
                 $orderId = (int)$conn->insert_id;
                 $stmt->close();
 
-                // 6) Lưu order_items & trừ tồn kho
+                // 7.1) Ghi lịch sử trạng thái ban đầu
+                if ($orderId > 0) {
+                    if ($stmtHist = $conn->prepare("
+                        INSERT INTO order_status_history (order_id, status, note, created_at)
+                        VALUES (?, ?, ?, NOW())
+                    ")) {
+                        $note = 'Đơn hàng được tạo trên website. Trạng thái ban đầu: '.$status;
+                        $stmtHist->bind_param('iss', $orderId, $status, $note);
+                        $stmtHist->execute();
+                        $stmtHist->close();
+                    }
+                }
+
+                // 8) Lưu order_items & trừ tồn kho
                 $stmtItem = $conn->prepare("
                     INSERT INTO order_items (
                         order_id, product_id, variant_id, name, attrs, unit_price, qty, line_total
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ");
+                if (!$stmtItem) {
+                    throw new Exception('Lỗi SQL INSERT order_items: '.$conn->error);
+                }
+
                 foreach ($cartItems as $it) {
                     $productId = (int)$it['product_id'];
                     $variantId = ($it['type'] === 'variant') ? (int)$it['id'] : 0;
@@ -480,29 +686,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isAjax) {
                             SET stock = GREATEST(stock - ?, 0)
                             WHERE id = ?
                         ");
-                        $stmtStock->bind_param('ii', $qty, $variantId);
-                        $stmtStock->execute();
-                        $stmtStock->close();
+                        if ($stmtStock) {
+                            $stmtStock->bind_param('ii', $qty, $variantId);
+                            $stmtStock->execute();
+                            $stmtStock->close();
+                        }
                     }
                 }
                 $stmtItem->close();
 
-                // 7) Cập nhật used_count của coupon (nếu dùng)
+                // 9) Cập nhật used_count của coupon (nếu dùng)
                 if ($couponRow) {
                     $stmt = $conn->prepare("
                         UPDATE discount_codes
                         SET used_count = used_count + 1
                         WHERE id = ?
                     ");
-                    $cid = (int)$couponRow['id'];
-                    $stmt->bind_param('i', $cid);
-                    $stmt->execute();
-                    $stmt->close();
+                    if ($stmt) {
+                        $cid = (int)$couponRow['id'];
+                        $stmt->bind_param('i', $cid);
+                        $stmt->execute();
+                        $stmt->close();
+                    }
+                }
+
+                // 10) Cập nhật điểm thưởng cho user (POINT)
+                if ($finalUserId && ($loyaltyPointsUsed > 0 || $loyaltyPointsEarned > 0)) {
+                    $stmt = $conn->prepare("
+                        UPDATE users
+                        SET loyalty_points = GREATEST(loyalty_points - ?, 0) + ?
+                        WHERE id = ?
+                    ");
+                    if ($stmt) {
+                        $stmt->bind_param('iii', $loyaltyPointsUsed, $loyaltyPointsEarned, $finalUserId);
+                        $stmt->execute();
+                        $stmt->close();
+                    }
                 }
 
                 $conn->commit();
 
-                // Xoá giỏ, xoá coupon
+                // 11) Gửi email xác nhận đơn hàng
+                $shippingAddressStr = $details . ', ' . $district . ', ' . $city;
+                if ($postal_code !== '') {
+                    $shippingAddressStr .= ' (' . $postal_code . ')';
+                }
+                $emailSent = send_order_confirmation_email(
+                    $billing_email,
+                    $billing_name !== '' ? $billing_name : $receiver_name,
+                    $orderId,
+                    $totals,            // totals sau coupon, trước điểm
+                    $pointDiscount,
+                    $finalAmount,
+                    $cartItems,
+                    $receiver_name,
+                    $shippingAddressStr
+                );
+
+                // Xoá các item đã chọn trong giỏ
                 if (!empty($_SESSION['cart']['items'])) {
                     foreach ($_SESSION['cart']['items'] as $key => $it) {
                         if (!empty($it['selected'])) {
@@ -526,10 +767,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isAjax) {
     }
 }
 
-// TÍNH TỔNG ĐỂ HIỂN THỊ
+// TÍNH TỔNG ĐỂ HIỂN THỊ (CHỈ COUPON, CHƯA TRỪ ĐIỂM)
 $percentOff = !empty($couponSession['percent_off']) ? (int)$couponSession['percent_off'] : 0;
 $totalsShow = cart_totals_with_percent($cartItems, $percentOff);
-
+$baseFinalForJs = $totalsShow['final'];
 ?>
 <!doctype html>
 <html lang="vi" data-bs-theme="light">
@@ -605,6 +846,15 @@ $totalsShow = cart_totals_with_percent($cartItems, $percentOff);
           <p>Cảm ơn bạn đã mua hàng tại <strong>E-Store.PC</strong>.</p>
           <p>Mã đơn hàng của bạn là: <strong>#<?=$orderId?></strong></p>
 
+          <?php if ($emailSent): ?>
+            <p>Một email xác nhận đã được gửi tới: <strong><?=htmlspecialchars($billing_email)?></strong>.</p>
+          <?php else: ?>
+            <p class="text-muted small mb-0">
+              Lưu ý: Nếu bạn không nhận được email xác nhận, vui lòng kiểm tra thư mục Spam
+              hoặc lưu lại mã đơn hàng để tra cứu sau.
+            </p>
+          <?php endif; ?>
+
           <?php if (!$isAuth && $newAccountPassword): ?>
             <div class="alert alert-info mt-3">
               <strong>Tài khoản đã được tạo tự động!</strong><br>
@@ -614,7 +864,14 @@ $totalsShow = cart_totals_with_percent($cartItems, $percentOff);
             </div>
           <?php endif; ?>
 
-          <a href="products.php" class="btn btn-brand mt-3">Tiếp tục mua sắm</a>
+          <div class="mt-3">
+            <a href="orders.php" class="btn btn-outline-secondary me-2">
+              Quản lý đơn hàng của bạn
+            </a>
+            <a href="products.php" class="btn btn-brand">
+              Tiếp tục mua sắm
+            </a>
+          </div>
         </div>
       </div>
     <?php else: ?>
@@ -622,6 +879,7 @@ $totalsShow = cart_totals_with_percent($cartItems, $percentOff);
       <form method="post" id="checkoutForm">
         <input type="hidden" name="action" value="place_order">
         <input type="hidden" name="address_id" id="address_id" value="<?=htmlspecialchars($chosenAddressId)?>">
+        <input type="hidden" name="use_loyalty_points" id="use_loyalty_points" value="0">
 
         <div class="row g-4">
           <!-- THÔNG TIN & ĐỊA CHỈ -->
@@ -728,11 +986,19 @@ $totalsShow = cart_totals_with_percent($cartItems, $percentOff);
                   Bạn <strong>không bắt buộc phải đăng nhập</strong> để mua hàng.
                   Nếu mua bằng email mới, hệ thống sẽ tự tạo tài khoản để bạn xem lại đơn trong tương lai.
                 </div>
+
+                <?php if ($isAuth): ?>
+                  <div class="alert alert-success mt-3 small mb-0">
+                    Chương trình khách hàng thân thiết: bạn sẽ được cộng <strong>10%</strong> giá trị đơn
+                    dưới dạng điểm thưởng. <br>
+                    <strong>Quy đổi:</strong> 1 điểm = 1.000đ.
+                  </div>
+                <?php endif; ?>
               </div>
             </div>
           </div>
 
-          <!-- TÓM TẮT + MÃ GIẢM GIÁ -->
+          <!-- TÓM TẮT + MÃ GIẢM GIÁ + ĐIỂM THƯỞNG -->
           <div class="col-lg-5">
             <div class="card border-0 shadow-sm mb-3">
               <div class="card-body">
@@ -771,7 +1037,7 @@ $totalsShow = cart_totals_with_percent($cartItems, $percentOff);
                   <span id="sumSubtotal"><?=format_vnd($totalsShow['subtotal'])?></span>
                 </div>
                 <div class="d-flex justify-content-between">
-                  <span>Thuế (10%)</span>
+                  <span>Thuế</span>
                   <span id="sumTax"><?=format_vnd($totalsShow['tax'])?></span>
                 </div>
                 <div class="d-flex justify-content-between">
@@ -784,11 +1050,31 @@ $totalsShow = cart_totals_with_percent($cartItems, $percentOff);
                   <span>-<span id="discountAmount"><?=format_vnd($totalsShow['discount'])?></span></span>
                 </div>
 
+                <!-- Giảm từ điểm thưởng -->
+                <div class="d-flex justify-content-between text-success mt-1" id="pointsRow" style="display:none;">
+                  <span>Giảm từ điểm thưởng</span>
+                  <span>-<span id="pointsDiscountAmount"><?=format_vnd(0)?></span></span>
+                </div>
+
                 <hr>
                 <div class="d-flex justify-content-between fw-bold">
                   <span>Tổng cộng</span>
                   <span id="sumFinal"><?=format_vnd($totalsShow['final'])?></span>
                 </div>
+
+                <?php if ($isAuth && $currentLoyaltyPoints > 0): ?>
+                  <div class="form-check mt-3">
+                    <input class="form-check-input" type="checkbox" id="chkUsePoints">
+                    <label class="form-check-label" for="chkUsePoints">
+                      Điểm thưởng của bạn: <strong><?= $currentLoyaltyPoints ?></strong>, bạn muốn sử dụng điểm thưởng
+                      
+                    </label>
+                  </div>
+                <?php elseif ($isAuth): ?>
+                  <div class="small text-muted mt-2">
+                    Bạn chưa có điểm thưởng.
+                  </div>
+                <?php endif; ?>
               </div>
             </div>
 
@@ -834,7 +1120,7 @@ $totalsShow = cart_totals_with_percent($cartItems, $percentOff);
 <footer class="py-3 mt-4 bg-white border-top">
   <div class="container d-flex justify-content-between small text-muted">
     <span>E-Store.PC • Checkout</span>
-    <span>Mã giảm giá có nút kiểm tra & hủy</span>
+    <span>Mã giảm giá & điểm thưởng</span>
   </div>
 </footer>
 
@@ -882,9 +1168,54 @@ document.addEventListener('DOMContentLoaded', function () {
   const discountAmountEl = document.getElementById('discountAmount');
   const discountPercentEl= document.getElementById('discountPercent');
 
+  // ====== ĐIỂM THƯỞNG ======
+  const pointsRow            = document.getElementById('pointsRow');
+  const pointsDiscountAmount = document.getElementById('pointsDiscountAmount');
+  const chkUsePoints         = document.getElementById('chkUsePoints');
+  const hiddenUsePoints      = document.getElementById('use_loyalty_points');
+
+  let baseFinal = <?= (int)$baseFinalForJs ?>;          // VND sau coupon, trước điểm
+  const loyaltyAvailablePoints = <?= (int)$currentLoyaltyPoints ?>; // POINT
+
   function formatVND(n) {
     return new Intl.NumberFormat('vi-VN').format(n) + 'đ';
   }
+
+  // Cập nhật hiển thị khi bật/tắt dùng điểm (1 điểm = 1.000đ)
+  function updatePointsDisplay() {
+    if (!sumFinalEl) return;
+
+    let final = baseFinal;
+    let pointsDiscount = 0;
+
+    if (chkUsePoints && chkUsePoints.checked && loyaltyAvailablePoints > 0) {
+      const maxDiscountFromPoints = loyaltyAvailablePoints * 1000;
+      const rawDiscount = Math.min(maxDiscountFromPoints, baseFinal);
+      const usedPoints  = Math.floor(rawDiscount / 1000);
+      pointsDiscount    = usedPoints * 1000;
+      final             = baseFinal - pointsDiscount;
+
+      if (pointsRow) {
+        pointsRow.style.display = '';
+        pointsDiscountAmount.textContent = formatVND(pointsDiscount);
+      }
+      if (hiddenUsePoints) hiddenUsePoints.value = '1';
+    } else {
+      if (pointsRow) {
+        pointsRow.style.display = 'none';
+        pointsDiscountAmount.textContent = formatVND(0);
+      }
+      if (hiddenUsePoints) hiddenUsePoints.value = '0';
+    }
+
+    sumFinalEl.textContent = formatVND(final);
+  }
+
+  if (chkUsePoints) {
+    chkUsePoints.addEventListener('change', updatePointsDisplay);
+  }
+  // Lần đầu load trang
+  updatePointsDisplay();
 
   async function postAjax(action, extra = {}) {
     const formData = new FormData();
@@ -917,15 +1248,18 @@ document.addEventListener('DOMContentLoaded', function () {
             sumSubtotalEl.textContent = formatVND(data.totals.subtotal);
             sumTaxEl.textContent      = formatVND(data.totals.tax);
             sumShippingEl.textContent = formatVND(data.totals.shipping);
-            sumFinalEl.textContent    = formatVND(data.totals.final);
+            baseFinal                 = data.totals.final;
 
             if (data.totals.discount > 0) {
-              discountRow.style.display = '';
+              discountRow.style.display    = '';
               discountAmountEl.textContent = formatVND(data.totals.discount);
               discountPercentEl.textContent= data.totals.percent ?? '';
             } else {
               discountRow.style.display = 'none';
             }
+
+            // Sau khi cập nhật coupon -> áp lại điểm thưởng
+            updatePointsDisplay();
           }
         } else {
           msgEl.innerHTML = '<span class="text-danger">'+ data.message +'</span>';
@@ -942,34 +1276,39 @@ document.addEventListener('DOMContentLoaded', function () {
 
   if (btnRemove) {
     btnRemove.addEventListener('click', async function () {
-        btnRemove.disabled = true;
-        try {
+      btnRemove.disabled = true;
+      try {
         const data = await postAjax('remove_coupon');
         if (data.ok && data.totals) {
-            msgEl.innerHTML = '<span class="text-muted">Đã huỷ mã giảm giá.</span>';
+          msgEl.innerHTML = '<span class="text-muted">Đã huỷ mã giảm giá.</span>';
 
-            // Cập nhật lại các tổng
-            sumSubtotalEl.textContent = formatVND(data.totals.subtotal);
-            sumTaxEl.textContent      = formatVND(data.totals.tax);
-            sumShippingEl.textContent = formatVND(data.totals.shipping);
-            sumFinalEl.textContent    = formatVND(data.totals.final);
+          sumSubtotalEl.textContent = formatVND(data.totals.subtotal);
+          sumTaxEl.textContent      = formatVND(data.totals.tax);
+          sumShippingEl.textContent = formatVND(data.totals.shipping);
+          baseFinal                 = data.totals.final;
 
-            // Hiện dòng giảm giá với 0% và 0đ
-            const percent  = (typeof data.totals.percent !== 'undefined') ? data.totals.percent : 0;
-            const discount = (typeof data.totals.discount !== 'undefined') ? data.totals.discount : 0;
+          const percent  = (typeof data.totals.percent !== 'undefined') ? data.totals.percent : 0;
+          const discount = (typeof data.totals.discount !== 'undefined') ? data.totals.discount : 0;
 
-            discountRow.style.display   = '';              // luôn hiển thị
-            discountPercentEl.textContent = percent;       // 0
-            discountAmountEl.textContent  = formatVND(discount); // 0đ
+          if (discount > 0) {
+            discountRow.style.display    = '';
+            discountPercentEl.textContent= percent;
+            discountAmountEl.textContent = formatVND(discount);
+          } else {
+            discountRow.style.display = 'none';
+          }
+
+          // Áp lại điểm thưởng lên tổng mới
+          updatePointsDisplay();
         }
-        } catch (e) {
+      } catch (e) {
         console.error(e);
         msgEl.innerHTML = '<span class="text-danger">Không thể huỷ mã giảm giá.</span>';
-        } finally {
+      } finally {
         btnRemove.disabled = false;
-        }
+      }
     });
-    }   
+  }
 });
 </script>
 </body>

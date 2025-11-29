@@ -11,8 +11,6 @@ const { signUser } = require('../utils/jwt'); // 👈 dùng chung
 const SECRET = process.env.JWT_SECRET || 'dev';
 const EXPIRES = '7d';
 
-
-
 async function mailer() {
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST,
@@ -26,6 +24,7 @@ async function mailer() {
  * Đăng ký
  * Body: { email, fullName, password, address: { label?, details, district, city } }
  * Lưu ý: dùng addresses.details/district/city (KHÔNG có line1)
+ * Cột users.is_banned mặc định = 0 (không bị cấm)
  */
 router.post('/register', async (req, res) => {
   try {
@@ -44,7 +43,7 @@ router.post('/register', async (req, res) => {
     // hash password
     const passwordHash = await bcrypt.hash(password, 10);
 
-    // tạo user
+    // tạo user (is_banned mặc định 0)
     const [userResult] = await db.query(
       `INSERT INTO users
          (email, full_name, password_hash, provider, role, loyalty_points, created_at, updated_at)
@@ -78,20 +77,43 @@ router.post('/login', async (req, res) => {
   try {
     const db = getDB();
     const { email, password } = req.body || {};
-    if (!email || !password) return res.status(400).json({ message: 'Missing email/password' });
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Missing email/password' });
+    }
 
     const [[user]] = await db.query('SELECT * FROM users WHERE email=? LIMIT 1', [email]);
-    if (!user) return res.status(401).json({ message: 'Invalid credentials' });
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+
+    // 🔒 CHECK TÀI KHOẢN BỊ CẤM
+    // is_banned: TINYINT(1) 0/1
+    if (user.is_banned) {
+      return res
+        .status(403)
+        .json({ message: 'Tài khoản của bạn đã bị khoá không thể sử dụng được.' });
+    }
 
     // nếu là tài khoản MXH (provider != local) và không có password_hash
-    if (!user.password_hash) return res.status(400).json({ message: 'Tài khoản này đăng nhập bằng MXH' });
+    if (!user.password_hash) {
+      return res.status(400).json({ message: 'Tài khoản này đăng nhập bằng MXH' });
+    }
 
     const ok = await bcrypt.compare(password, user.password_hash || '');
-    if (!ok) return res.status(401).json({ message: 'Invalid credentials' });
+    if (!ok) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
 
-    res.json({ token: signUser(user), user: {
-      id: user.id, email: user.email, full_name: user.full_name, role: user.role, loyalty_points: user.loyalty_points
-    }});
+    res.json({
+      token: signUser(user),
+      user: {
+        id: user.id,
+        email: user.email,
+        full_name: user.full_name,
+        role: user.role,
+        loyalty_points: user.loyalty_points
+      }
+    });
   } catch (e) {
     console.error(e);
     res.status(500).json({ message:'Server error' });
@@ -112,8 +134,10 @@ router.get('/me', auth, async (req, res) => {
 router.put('/profile', auth, async (req, res) => {
   try {
     const db = getDB();
-    await db.query('UPDATE users SET full_name=?, updated_at=NOW() WHERE id=?',
-      [req.body.fullName, req.user.uid]);
+    await db.query(
+      'UPDATE users SET full_name=?, updated_at=NOW() WHERE id=?',
+      [req.body.fullName, req.user.uid]
+    );
     const [[user]] = await db.query(
       'SELECT id,email,full_name,role,loyalty_points FROM users WHERE id=?',
       [req.user.uid]
@@ -130,15 +154,21 @@ router.post('/change-password', auth, async (req, res) => {
   try {
     const db = getDB();
     const { oldPassword, newPassword } = req.body || {};
-    if (!oldPassword || !newPassword) return res.status(400).json({ message:'Missing fields' });
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ message:'Missing fields' });
+    }
 
     const [[u]] = await db.query('SELECT password_hash FROM users WHERE id=?', [req.user.uid]);
     const ok = await bcrypt.compare(oldPassword, u?.password_hash || '');
-    if (!ok) return res.status(400).json({ message:'Old password incorrect' });
+    if (!ok) {
+      return res.status(400).json({ message:'Old password incorrect' });
+    }
 
     const hash = await bcrypt.hash(newPassword, 10);
-    await db.query('UPDATE users SET password_hash=?, updated_at=NOW() WHERE id=?',
-      [hash, req.user.uid]);
+    await db.query(
+      'UPDATE users SET password_hash=?, updated_at=NOW() WHERE id=?',
+      [hash, req.user.uid]
+    );
     res.json({ message:'Password updated' });
   } catch (e) {
     console.error(e);
@@ -151,10 +181,14 @@ router.post('/forgot-password', async (req, res) => {
   try {
     const db = getDB();
     const { email } = req.body || {};
-    if (!email) return res.json({ message:'If email exists, a reset link is sent' });
+    if (!email) {
+      return res.json({ message:'If email exists, a reset link is sent' });
+    }
 
     const [[user]] = await db.query('SELECT id,email FROM users WHERE email=?', [email]);
-    if (!user) return res.json({ message:'If email exists, a reset link is sent' });
+    if (!user) {
+      return res.json({ message:'If email exists, a reset link is sent' });
+    }
 
     const token = crypto.randomBytes(24).toString('hex');
     const exp = new Date(Date.now() + 30*60*1000); // 30 phút
@@ -184,13 +218,17 @@ router.post('/reset-password', async (req, res) => {
   try {
     const db = getDB();
     const { token, newPassword } = req.body || {};
-    if (!token || !newPassword) return res.status(400).json({ message:'Missing fields' });
+    if (!token || !newPassword) {
+      return res.status(400).json({ message:'Missing fields' });
+    }
 
     const [[user]] = await db.query(
       'SELECT id FROM users WHERE reset_token=? AND reset_token_exp > NOW() LIMIT 1',
       [token]
     );
-    if (!user) return res.status(400).json({ message:'Invalid or expired token' });
+    if (!user) {
+      return res.status(400).json({ message:'Invalid or expired token' });
+    }
 
     const hash = await bcrypt.hash(newPassword, 10);
     await db.query(

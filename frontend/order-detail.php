@@ -26,13 +26,42 @@ function format_vnd($n){
     return number_format((int)$n,0,',','.').'đ';
 }
 
+function human_status_label(string $status): string {
+    $statusLower = strtolower($status);
+    switch ($statusLower) {
+        case 'paid':
+        case 'completed':
+        case 'delivered':
+            return 'Hoàn tất';
+        case 'shipping':
+        case 'shipped':
+        case 'on-delivery':
+            return 'Đang giao';
+        case 'processing':
+            return 'Đang xử lý';
+        case 'cancelled':
+        case 'canceled':
+            return 'Đã huỷ';
+        case 'pending':
+        default:
+            return 'Chờ xử lý';
+    }
+}
+
+// ====== LẤY ID ĐƠN HÀNG TỪ QUERY ======
+$orderId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+if ($orderId <= 0) {
+    echo "Thiếu ID đơn hàng.";
+    exit;
+}
+
 // ====== KIỂM TRA ĐĂNG NHẬP ======
-$isAuth   = false;
-$authUser = null;
-$authName = '';
-$authEmail= '';
+$isAuth     = false;
+$authUser   = null;
+$authName   = '';
+$authEmail  = '';
 $authUserId = null;
-$msg = '';
+$msg        = '';
 
 try {
     $t = get_token();
@@ -53,26 +82,25 @@ try {
 }
 
 if (!$isAuth || !$authUserId) {
-    header('Location: login.php');
-    exit;
-}
-
-// ====== LẤY ID ĐƠN HÀNG ======
-$orderId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
-if ($orderId <= 0) {
-    echo "Thiếu ID đơn hàng.";
+    // redirect kèm lại link đơn hàng
+    $redirectUrl = 'order-details.php?id=' . $orderId;
+    header('Location: login.php?redirect='.urlencode($redirectUrl));
     exit;
 }
 
 $conn = db();
 
 // ====== LẤY THÔNG TIN ĐƠN HÀNG (CHỈ CHO CHỦ ĐƠN) ======
-$stmt = $conn->prepare("
+$sqlOrder = "
     SELECT *
     FROM orders
     WHERE id = ? AND user_id = ?
     LIMIT 1
-");
+";
+$stmt = $conn->prepare($sqlOrder);
+if (!$stmt) {
+    die('Lỗi SQL (order): '.$conn->error);
+}
 $stmt->bind_param('ii', $orderId, $authUserId);
 $stmt->execute();
 $orderRes = $stmt->get_result();
@@ -85,15 +113,18 @@ if (!$order) {
 }
 
 // ====== LẤY DANH SÁCH SẢN PHẨM TRONG ĐƠN ======
-// join với products để lấy slug → suy ra đường dẫn ảnh
-$stmt = $conn->prepare("
+$sqlItems = "
     SELECT 
         oi.*,
         p.slug AS product_slug
     FROM order_items oi
     LEFT JOIN products p ON p.id = oi.product_id
     WHERE oi.order_id = ?
-");
+";
+$stmt = $conn->prepare($sqlItems);
+if (!$stmt) {
+    die('Lỗi SQL (order_items): '.$conn->error);
+}
 $stmt->bind_param('i', $orderId);
 $stmt->execute();
 $itemsRes = $stmt->get_result();
@@ -113,7 +144,6 @@ while ($row = $itemsRes->fetch_assoc()) {
     if (!empty($row['product_slug'])) {
         $slug = $row['product_slug'];
 
-        // Thử slug-1.jpg, slug.jpg giống logic product-detail.php
         $candidate1 = "acess/product/{$slug}-1.jpg";
         $candidate2 = "acess/product/{$slug}.jpg";
 
@@ -129,15 +159,38 @@ while ($row = $itemsRes->fetch_assoc()) {
 }
 $stmt->close();
 
-// ====== TÍNH TOÁN ĐƠN ======
-$subtotal       = (int)$order['subtotal'];
-$tax            = (int)$order['tax'];
-$shipping_fee   = (int)$order['shipping_fee'];
-$discount_amount= (int)$order['discount_amount'];
-$total_amount   = (int)$order['total_amount'];
-$coupon_code    = $order['coupon_code'];
-$status         = $order['status'];
+// ====== LẤY LỊCH SỬ TRẠNG THÁI ĐƠN HÀNG ======
+$statusHistory = [];
+$sqlHist = "
+    SELECT status, note, created_at
+    FROM order_status_history
+    WHERE order_id = ?
+    ORDER BY created_at DESC
+";
+$stmtHist = $conn->prepare($sqlHist);
+if ($stmtHist) {
+    $stmtHist->bind_param('i', $orderId);
+    $stmtHist->execute();
+    $resHist = $stmtHist->get_result();
+    while ($row = $resHist->fetch_assoc()) {
+        $statusHistory[] = $row;
+    }
+    $stmtHist->close();
+}
+$hasHistory = !empty($statusHistory);
 
+// ====== TÍNH TOÁN ĐƠN & ĐIỂM THƯỞNG ======
+$subtotal        = (int)$order['subtotal'];
+$tax             = (int)$order['tax'];
+$shipping_fee    = (int)$order['shipping_fee'];
+$discount_amount = (int)$order['discount_amount'];
+$total_amount    = (int)$order['total_amount'];
+$coupon_code     = $order['coupon_code'];
+$status          = $order['status'];
+
+$loyaltyUsed     = (int)($order['loyalty_points_used']   ?? 0);
+$loyaltyEarned   = (int)($order['loyalty_points_earned'] ?? 0);
+$pointDiscount   = (int)($order['point_discount']        ?? 0);
 ?>
 <!doctype html>
 <html lang="vi" data-bs-theme="light">
@@ -170,14 +223,39 @@ $status         = $order['status'];
   </style>
 </head>
 <body>
-<nav class="navbar">
-  <div class="container d-flex justify-content-between align-items-center">
+<nav class="navbar navbar-expand-lg sticky-top">
+  <div class="container">
     <a class="navbar-brand fw-bold" style="color:var(--brand)" href="index.php">
       E-Store<span class="text-dark">.PC</span>
     </a>
-    <div class="d-flex gap-2">
-      <a href="orders.php" class="btn btn-sm btn-outline-secondary">Lịch sử đơn hàng</a>
-      <a href="profile.php" class="btn btn-sm btn-outline-primary">Hồ sơ</a>
+    <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="nav">
+      <ul class="navbar-nav me-auto">
+        <li class="nav-item"><a class="nav-link" href="index.php">Trang chủ</a></li>
+        <li class="nav-item"><a class="nav-link" href="products.php">Sản phẩm</a></li>
+        <li class="nav-item"><a class="nav-link" href="cart.php">Giỏ hàng</a></li>
+        <li class="nav-item"><a class="nav-link active" href="orders.php">Đơn mua</a></li>
+      </ul>
+      <div class="d-flex align-items-center gap-2">
+        <?php if ($isAuth): ?>
+          <div class="dropdown">
+            <button class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">
+              👋 <?= htmlspecialchars($authName ?: $authEmail) ?>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li><a class="dropdown-item" href="profile.php">Hồ sơ cá nhân</a></li>
+              <li><a class="dropdown-item" href="orders.php">Đơn mua</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item text-danger" href="logout.php">Đăng xuất</a></li>
+            </ul>
+          </div>
+        <?php else: ?>
+          <a href="login.php" class="btn btn-sm btn-outline-primary">Đăng nhập</a>
+          <a href="register.php" class="btn btn-sm btn-brand">Đăng ký</a>
+        <?php endif; ?>
+      </div>
     </div>
   </div>
 </nav>
@@ -193,21 +271,41 @@ $status         = $order['status'];
         </div>
       </div>
       <div class="text-end">
-        <div>
+        <div class="mb-1">
           Trạng thái:
           <?php
-          $badgeClass = 'secondary';
-          if ($status === 'pending')   $badgeClass = 'warning';
-          elseif ($status === 'paid')  $badgeClass = 'success';
-          elseif ($status === 'cancelled') $badgeClass = 'danger';
+          $badgeClass  = 'secondary';
+          $statusLabel = human_status_label((string)$status);
+          $sLower      = strtolower((string)$status);
+          if (in_array($sLower, ['paid','completed','delivered'], true)) {
+              $badgeClass = 'success';
+          } elseif (in_array($sLower, ['shipping','shipped','on-delivery'], true)) {
+              $badgeClass = 'info';
+          } elseif (in_array($sLower, ['cancelled','canceled'], true)) {
+              $badgeClass = 'danger';
+          } elseif ($sLower === 'processing') {
+              $badgeClass = 'primary';
+          } elseif ($sLower === 'pending') {
+              $badgeClass = 'warning';
+          }
           ?>
           <span class="badge text-bg-<?=$badgeClass?>">
-            <?=htmlspecialchars(ucfirst($status))?>
+            <?=htmlspecialchars($statusLabel)?>
           </span>
         </div>
         <div class="mt-1">
           Tổng tiền: <strong><?=format_vnd($total_amount)?></strong>
         </div>
+
+        <?php if ($hasHistory): ?>
+          <!-- NÚT MỞ MODAL LỊCH SỬ TRẠNG THÁI -->
+          <button type="button"
+                  class="btn btn-sm btn-outline-secondary mt-2"
+                  data-bs-toggle="modal"
+                  data-bs-target="#statusHistoryModal">
+            Xem lịch sử trạng thái
+          </button>
+        <?php endif; ?>
       </div>
     </div>
 
@@ -218,7 +316,7 @@ $status         = $order['status'];
     <div class="row g-4">
       <!-- Thông tin giao hàng -->
       <div class="col-lg-4">
-        <div class="card card-lite h-100">
+        <div class="card card-lite">
           <div class="card-body">
             <h5 class="mb-3">Thông tin giao hàng</h5>
             <div class="mb-2">
@@ -248,6 +346,14 @@ $status         = $order['status'];
                 <?=htmlspecialchars($order['email'] ?? '')?>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- GỢI Ý XEM LỊCH SỬ -->
+        <div class="card card-lite mt-3">
+          <div class="card-body small text-muted">
+            Bạn có thể xem <strong>lịch sử trạng thái đơn hàng</strong> (đang chờ xử lý, đã xác nhận, đang giao, đã giao...)
+            bằng cách bấm nút <strong>"Xem lịch sử trạng thái"</strong> ở phía trên.
           </div>
         </div>
       </div>
@@ -283,7 +389,7 @@ $status         = $order['status'];
                               <?php endforeach; ?>
                             </div>
                           <?php endif; ?>
-                          <?php if(!empty($it['product_id'])): ?>
+                          <?php if(!empty($it['product_id']) && !empty($it['product_slug'])): ?>
                             <div class="small">
                               <a href="product-detail.php?slug=<?=urlencode($it['product_slug'])?>" class="text-decoration-none">
                                 Xem lại sản phẩm
@@ -319,17 +425,34 @@ $status         = $order['status'];
               <span>Phí vận chuyển</span>
               <span><?=format_vnd($shipping_fee)?></span>
             </div>
+
             <?php if ($discount_amount > 0): ?>
               <div class="d-flex justify-content-between text-success">
-                <span>Giảm giá<?=$coupon_code ? ' ('.htmlspecialchars($coupon_code).')' : ''?></span>
+                <span>Giảm giá<?= $coupon_code ? ' (Mã '.htmlspecialchars($coupon_code).')' : '' ?></span>
                 <span>-<?=format_vnd($discount_amount)?></span>
               </div>
             <?php endif; ?>
+
+            <?php if ($loyaltyUsed > 0 || $pointDiscount > 0): ?>
+              <div class="d-flex justify-content-between text-success">
+                <span>Giảm từ điểm thưởng (<?= $loyaltyUsed ?> điểm)</span>
+                <span>-<?=format_vnd($pointDiscount)?></span>
+              </div>
+            <?php endif; ?>
+
             <hr>
             <div class="d-flex justify-content-between fw-bold">
               <span>Tổng thanh toán</span>
               <span><?=format_vnd($total_amount)?></span>
             </div>
+
+            <?php if ($loyaltyEarned > 0): ?>
+              <div class="mt-2 small text-success">
+                Bạn đã được cộng <strong><?= $loyaltyEarned ?> điểm thưởng</strong> cho đơn hàng này.
+                Điểm có thể dùng để giảm giá cho các đơn hàng tiếp theo.
+              </div>
+            <?php endif; ?>
+
             <div class="mt-3">
               <a href="orders.php" class="btn btn-outline-secondary btn-sm">← Quay lại lịch sử đơn hàng</a>
               <a href="products.php" class="btn btn-brand btn-sm ms-2">Tiếp tục mua sắm</a>
@@ -346,9 +469,55 @@ $status         = $order['status'];
 <footer class="py-3 mt-4 bg-white border-top">
   <div class="container d-flex justify-content-between small text-muted">
     <span>E-Store.PC • Order Details</span>
-    <span>Hiển thị hình ảnh sản phẩm trong đơn</span>
+    <span>Chi tiết đơn, trạng thái & điểm thưởng</span>
   </div>
 </footer>
+
+<!-- MODAL LỊCH SỬ TRẠNG THÁI ĐƠN HÀNG -->
+<div class="modal fade" id="statusHistoryModal" tabindex="-1" aria-labelledby="statusHistoryLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="statusHistoryLabel">
+          Lịch sử trạng thái đơn hàng #<?=htmlspecialchars($orderId)?>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+      </div>
+      <div class="modal-body">
+        <?php if ($statusHistory): ?>
+          <p class="small text-muted">
+            Các lần cập nhật trạng thái, <strong>mới nhất hiển thị trước</strong>.
+          </p>
+          <div class="list-group">
+            <?php foreach ($statusHistory as $h): ?>
+              <div class="list-group-item">
+                <div class="d-flex justify-content-between">
+                  <div>
+                    <strong><?=htmlspecialchars(human_status_label($h['status']))?></strong>
+                    <?php if (!empty($h['note'])): ?>
+                      <div class="small text-muted"><?=htmlspecialchars($h['note'])?></div>
+                    <?php endif; ?>
+                  </div>
+                  <div class="small text-muted text-end">
+                    <?=htmlspecialchars($h['created_at'])?>
+                  </div>
+                </div>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        <?php else: ?>
+          <div class="alert alert-secondary small mb-0">
+            Chưa có lịch sử trạng thái chi tiết cho đơn hàng này.  
+            Trạng thái hiện tại: <strong><?=htmlspecialchars($statusLabel)?></strong>.
+          </div>
+        <?php endif; ?>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Đóng</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>

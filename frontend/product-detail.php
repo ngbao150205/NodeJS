@@ -7,6 +7,9 @@ error_reporting(E_ALL);
 require __DIR__.'/lib/api.php';
 $apiBase = 'http://localhost:8080/api';
 
+// dùng chung kiểm tra đăng nhập
+require __DIR__.'/_auth_header.php';
+
 // Lấy slug từ query
 $slug = trim($_GET['slug'] ?? '');
 if ($slug === '') {
@@ -17,25 +20,6 @@ if ($slug === '') {
 
 $msg = '';
 $ok  = '';
-
-// ========== KIỂM TRA ĐĂNG NHẬP ==========
-$isAuth   = false;
-$userName = '';
-
-try {
-  $t = get_token();
-  if ($t) {
-    [$cMe, $me] = api_call('GET', "$apiBase/auth/me", null, true);
-    if ($cMe === 200 && !empty($me['user'])) {
-      $isAuth   = true;
-      $userName = $me['user']['full_name'] ?? ($me['user']['email'] ?? 'Tài khoản');
-    } else {
-      clear_token();
-    }
-  }
-} catch (Exception $e) {
-  clear_token();
-}
 
 // ========== LẤY THÔNG TIN SẢN PHẨM ==========
 try {
@@ -250,7 +234,7 @@ while (count($displayImages) < 3) {
   </style>
 </head>
 <body>
-  <!-- Navbar giống index -->
+  <!-- Navbar -->
   <nav class="navbar navbar-expand-lg sticky-top">
     <div class="container">
       <a class="navbar-brand fw-bold" style="color:var(--brand)" href="index.php">E-Store<span class="text-dark">.PC</span></a>
@@ -260,17 +244,20 @@ while (count($displayImages) < 3) {
       <div class="collapse navbar-collapse" id="nav">
         <ul class="navbar-nav me-auto">
           <li class="nav-item"><a class="nav-link" href="index.php">Trang chủ</a></li>
-          <li class="nav-item"><a class="nav-link" href="products.php">Sản phẩm</a></li>
+          <li class="nav-item"><a class="nav-link active" href="products.php">Sản phẩm</a></li>
           <li class="nav-item"><a class="nav-link" href="cart.php">Giỏ hàng</a></li>
         </ul>
-        <div class="d-flex gap-2">
+
+        <!-- ✅ Nút tài khoản: Ẩn/hiện theo trạng thái đăng nhập -->
+        <div class="d-flex align-items-center gap-2">
           <?php if ($isAuth): ?>
             <div class="dropdown">
               <button class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">
-                👋 <?=htmlspecialchars($userName)?>
+                👋 <?= htmlspecialchars($userName) ?>
               </button>
               <ul class="dropdown-menu dropdown-menu-end">
-                <li><a class="dropdown-item" href="profile.php">Hồ sơ</a></li>
+                <li><a class="dropdown-item" href="profile.php">Hồ sơ cá nhân</a></li>
+                <li><a class="dropdown-item" href="orders.php">Lịch sử mua hàng</a></li>
                 <li><hr class="dropdown-divider"></li>
                 <li><a class="dropdown-item text-danger" href="logout.php">Đăng xuất</a></li>
               </ul>
@@ -328,11 +315,23 @@ while (count($displayImages) < 3) {
         <div class="col-lg-7">
           <div class="card border-0 shadow-sm mb-3">
             <div class="card-body">
-              <span class="badge badge-soft mb-2">CHI TIẾT SẢN PHẨM</span>
-              <h2 class="mb-1"><?=$name?></h2>
-              <?php if($brand): ?>
-                <div class="text-muted mb-2">Thương hiệu: <strong><?=htmlspecialchars($brand)?></strong></div>
-              <?php endif; ?>
+              <div class="d-flex justify-content-between align-items-start mb-2">
+                <div>
+                  <span class="badge badge-soft mb-2 d-inline-block">CHI TIẾT SẢN PHẨM</span>
+                  <h2 class="mb-1"><?=$name?></h2>
+                  <?php if($brand): ?>
+                    <div class="text-muted">Thương hiệu: <strong><?=htmlspecialchars($brand)?></strong></div>
+                  <?php endif; ?>
+                </div>
+                <div>
+                  <!-- Nút X quay lại trang danh sách sản phẩm -->
+                  <a href="products.php"
+                    class="btn btn-sm btn-outline-secondary"
+                    title="Quay lại danh sách sản phẩm">
+                    &times;
+                  </a>
+                </div>
+              </div>
 
               <div class="d-flex align-items-center gap-2 mb-2">
                 <div class="price fs-4">

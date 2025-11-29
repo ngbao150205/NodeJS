@@ -58,6 +58,8 @@ function format_price($n) {
 // --- KIỂM TRA TRẠNG THÁI ĐĂNG NHẬP ---
 $isAuth   = false;
 $userName = '';
+$user     = null;   // 👈 thêm biến user
+$err      = null;
 
 try {
     $t = get_token(); // lấy token đã lưu (nếu có)
@@ -68,7 +70,8 @@ try {
 
         if ($code === 200 && !empty($me['user'])) {
             $isAuth   = true;
-            $userName = $me['user']['full_name'] ?? ($me['user']['email'] ?? 'Tài khoản');
+            $user     = $me['user']; // 👈 lưu lại toàn bộ user
+            $userName = $user['full_name'] ?? ($user['email'] ?? 'Tài khoản');
         } else {
             // Token không hợp lệ -> xoá
             clear_token();
@@ -121,13 +124,11 @@ function product_card($p) {
 
     // 2) Nếu chưa tìm được ảnh tĩnh → fallback
     if ($img === null) {
-        // nếu sau này bạn vẫn cho API trả images thì có thể dùng lại:
-        // $img = $p['images'][0] ?? 'acess/product/no-image.jpg';
         $img = 'acess/product/no-image.jpg';
     }
 
     // Trong /api/home backend đã map sẵn variants & giá
-    $price = $p['variants'][0]['price'] ?? ($p['price_min'] ?? null);
+    $price       = $p['variants'][0]['price'] ?? ($p['price_min'] ?? null);
     $rating      = isset($p['avg_rating']) ? (float)$p['avg_rating'] : 0;
     $ratingCount = $p['total_reviews'] ?? 0;
 
@@ -204,6 +205,13 @@ function product_card($p) {
           <li class="nav-item"><a class="nav-link active" href="index.php">Trang chủ</a></li>
           <li class="nav-item"><a class="nav-link" href="products.php">Sản phẩm</a></li>
           <li class="nav-item"><a class="nav-link" href="cart.php">Giỏ hàng</a></li>
+
+          <!-- 🔐 NÚT ADMIN: chỉ hiện khi đã đăng nhập & role = admin -->
+          <?php if ($isAuth && ($user['role'] ?? '') === 'admin'): ?>
+            <li class="nav-item ms-2">
+              <a href="admin-dashboard.php" class="btn btn-sm btn-warning">Admin</a>
+            </li>
+          <?php endif; ?>
         </ul>
 
         <!-- ✅ Nút tài khoản: Ẩn/hiện theo trạng thái đăng nhập -->
@@ -282,7 +290,7 @@ function product_card($p) {
         <div class="alert alert-danger mt-4">Không gọi được API: <?=htmlspecialchars($err)?></div>
       <?php endif; ?>
 
-      <!-- ================= SẢN PHẨM MỚI ================= -->
+      <!-- ================= SẢN PHẨM MỚi ================= -->
       <?php if (!empty($home['newProducts'])): ?>
       <section class="mt-5" id="new-products">
         <div class="d-flex justify-content-between align-items-end mb-3">
@@ -345,7 +353,6 @@ function product_card($p) {
         </div>
       </section>
       <?php endif; ?>
-
 
       <!-- ================= Hard Drives & SSD ================= -->
       <?php if (!empty($home['categories']['hardDrives'])): ?>

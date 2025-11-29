@@ -58,14 +58,18 @@ if (!$isAuth || !$authUserId) {
 }
 
 // ====== PHÂN TRANG ĐƠN HÀNG ======
-$page  = max(1, (int)($_GET['page'] ?? 1));
-$limit = 10;
-$offset= ($page - 1) * $limit;
+$page   = max(1, (int)($_GET['page'] ?? 1));
+$limit  = 10;
+$offset = ($page - 1) * $limit;
 
 $conn = db();
 
 // Đếm tổng số đơn của user
-$stmt = $conn->prepare("SELECT COUNT(*) AS cnt FROM orders WHERE user_id = ?");
+$sqlCount = "SELECT COUNT(*) AS cnt FROM orders WHERE user_id = ?";
+$stmt = $conn->prepare($sqlCount);
+if (!$stmt) {
+    die('Lỗi SQL (count orders): ' . $conn->error);
+}
 $stmt->bind_param('i', $authUserId);
 $stmt->execute();
 $res = $stmt->get_result();
@@ -76,15 +80,20 @@ $stmt->close();
 $totalPages = max(1, (int)ceil($totalOrders / $limit));
 
 // Lấy danh sách đơn theo trang
-$stmt = $conn->prepare("
+$sqlList = "
     SELECT 
         id, created_at, status, 
-        subtotal, tax, shipping_fee, discount_amount, total_amount, coupon_code
+        subtotal, tax, shipping_fee, discount_amount, total_amount, coupon_code,
+        loyalty_points_used, loyalty_points_earned, point_discount
     FROM orders
     WHERE user_id = ?
     ORDER BY created_at DESC
     LIMIT ? OFFSET ?
-");
+";
+$stmt = $conn->prepare($sqlList);
+if (!$stmt) {
+    die('Lỗi SQL (list orders): ' . $conn->error);
+}
 $stmt->bind_param('iii', $authUserId, $limit, $offset);
 $stmt->execute();
 $res = $stmt->get_result();
@@ -101,12 +110,17 @@ function render_status_badge($status) {
     switch ($status) {
         case 'paid':
         case 'completed':
+        case 'delivered':
             return '<span class="badge bg-success">Hoàn tất</span>';
+        case 'shipping':
+        case 'shipped':
+        case 'on-delivery':
+            return '<span class="badge bg-info text-dark">Đang giao</span>';
         case 'cancelled':
         case 'canceled':
             return '<span class="badge bg-danger">Đã hủy</span>';
         case 'processing':
-            return '<span class="badge bg-info text-dark">Đang xử lý</span>';
+            return '<span class="badge bg-primary">Đang xử lý</span>';
         default:
             return '<span class="badge bg-warning text-dark">Chờ xử lý</span>';
     }
@@ -140,8 +154,10 @@ function render_status_badge($status) {
 <body>
 <nav class="navbar navbar-expand-lg sticky-top">
   <div class="container">
-    <a class="navbar-brand fw-bold" style="color:var(--brand)" href="index.php">E-Store<span class="text-dark">.PC</span></a>
-    <button class="navbar-toggler border-0" data-bs-toggle="collapse" data-bs-target="#nav">
+    <a class="navbar-brand fw-bold" style="color:var(--brand)" href="index.php">
+      E-Store<span class="text-dark">.PC</span>
+    </a>
+    <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
       <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="nav">
@@ -151,9 +167,23 @@ function render_status_badge($status) {
         <li class="nav-item"><a class="nav-link" href="cart.php">Giỏ hàng</a></li>
         <li class="nav-item"><a class="nav-link active" href="orders.php">Đơn mua</a></li>
       </ul>
-      <div class="d-flex gap-2">
-        <span class="small text-muted me-2">👋 <?=htmlspecialchars($authName ?: $authEmail)?></span>
-        <a href="logout.php" class="btn btn-sm btn-outline-danger">Đăng xuất</a>
+      <div class="d-flex align-items-center gap-2">
+        <?php if ($isAuth): ?>
+          <div class="dropdown">
+            <button class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">
+              👋 <?= htmlspecialchars($authName ?: $authEmail) ?>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li><a class="dropdown-item" href="profile.php">Hồ sơ cá nhân</a></li>
+              <li><a class="dropdown-item" href="orders.php">Đơn mua</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item text-danger" href="logout.php">Đăng xuất</a></li>
+            </ul>
+          </div>
+        <?php else: ?>
+          <a href="login.php" class="btn btn-sm btn-outline-primary">Đăng nhập</a>
+          <a href="register.php" class="btn btn-sm btn-brand">Đăng ký</a>
+        <?php endif; ?>
       </div>
     </div>
   </div>
@@ -164,7 +194,12 @@ function render_status_badge($status) {
 
     <!-- TIÊU ĐỀ + NÚT QUAY LẠI HỒ SƠ -->
     <div class="d-flex justify-content-between align-items-center mb-3">
-      <h3 class="mb-0">Lịch sử mua hàng</h3>
+      <div>
+        <h3 class="mb-0">Lịch sử mua hàng</h3>
+        <div class="text-muted small">
+          Bạn có tổng cộng <strong><?= $totalOrders ?></strong> đơn hàng.
+        </div>
+      </div>
       <a href="profile.php" class="btn btn-outline-secondary btn-sm">
         ← Quay lại hồ sơ
       </a>
@@ -187,11 +222,16 @@ function render_status_badge($status) {
                   <th>Trạng thái</th>
                   <th class="text-end">Tổng thanh toán</th>
                   <th class="text-center">Mã giảm giá</th>
+                  <th class="text-center">Điểm thưởng</th>
                   <th class="text-end"></th>
                 </tr>
               </thead>
               <tbody>
               <?php foreach ($orders as $o): ?>
+                <?php
+                  $lpUsed   = (int)($o['loyalty_points_used']   ?? 0);
+                  $lpEarned = (int)($o['loyalty_points_earned'] ?? 0);
+                ?>
                 <tr>
                   <td>#<?= (int)$o['id'] ?></td>
                   <td><?= htmlspecialchars($o['created_at'] ?? '') ?></td>
@@ -206,9 +246,24 @@ function render_status_badge($status) {
                       <span class="text-muted small">Không dùng</span>
                     <?php endif; ?>
                   </td>
+                  <td class="text-center">
+                    <?php if ($lpUsed > 0 || $lpEarned > 0): ?>
+                      <div class="small">
+                        <?php if ($lpUsed > 0): ?>
+                          <div class="text-danger">Đã dùng: <?= $lpUsed ?> điểm</div>
+                        <?php endif; ?>
+                        <?php if ($lpEarned > 0): ?>
+                          <div class="text-success">Được cộng: <?= $lpEarned ?> điểm</div>
+                        <?php endif; ?>
+                      </div>
+                    <?php else: ?>
+                      <span class="text-muted small">0 điểm</span>
+                    <?php endif; ?>
+                  </td>
                   <td class="text-end">
-                    <a href="order-detail.php?id=<?= (int)$o['id'] ?>" class="btn btn-sm btn-outline-primary">
-                      Xem chi tiết
+                    <a href="order-detail.php?id=<?= (int)$o['id'] ?>" 
+                        class="btn btn-sm btn-outline-primary">
+                        Xem chi tiết
                     </a>
                   </td>
                 </tr>
@@ -245,7 +300,7 @@ function render_status_badge($status) {
 <footer class="py-3 mt-4 bg-white border-top">
   <div class="container d-flex justify-content-between small text-muted">
     <span>E-Store.PC • Orders</span>
-    <span>Xem lịch sử mua hàng</span>
+    <span>Xem lịch sử mua hàng & điểm thưởng</span>
   </div>
 </footer>
 

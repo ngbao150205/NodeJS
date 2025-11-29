@@ -9,6 +9,25 @@ require __DIR__.'/lib/api.php';
 
 $apiBase = 'http://localhost:8080/api';
 
+// ========== KIỂM TRA ĐĂNG NHẬP ==========
+$isAuth   = false;
+$userName = '';
+
+try {
+    $t = get_token();
+    if ($t) {
+        [$cMe, $me] = api_call('GET', "$apiBase/auth/me", null, true);
+        if ($cMe === 200 && !empty($me['user'])) {
+            $isAuth   = true;
+            $userName = $me['user']['full_name'] ?? ($me['user']['email'] ?? 'Tài khoản');
+        } else {
+            clear_token();
+        }
+    }
+} catch (Exception $e) {
+    clear_token();
+}
+
 // Khởi tạo giỏ hàng trong session nếu chưa có
 if (!isset($_SESSION['cart'])) {
     $_SESSION['cart'] = ['items' => []];
@@ -216,7 +235,6 @@ if (in_array($action, ['add', 'add_variant', 'update', 'remove', 'toggle_select'
 
 // ========= ĐẾN ĐÂY: HIỂN THỊ TRANG GIỎ HÀNG =========
 
-
 $items  = $_SESSION['cart']['items'] ?? [];
 
 // Đảm bảo item nào cũng có key 'selected'
@@ -284,6 +302,26 @@ if (!$items) {
         <li class="nav-item"><a class="nav-link" href="products.php">Sản phẩm</a></li>
         <li class="nav-item"><a class="nav-link active" href="cart.php">Giỏ hàng</a></li>
       </ul>
+
+      <!-- ✅ Nút tài khoản: Ẩn/hiện theo trạng thái đăng nhập -->
+      <div class="d-flex align-items-center gap-2">
+        <?php if ($isAuth): ?>
+          <div class="dropdown">
+            <button class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">
+              👋 <?= htmlspecialchars($userName) ?>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li><a class="dropdown-item" href="profile.php">Hồ sơ cá nhân</a></li>
+              <li><a class="dropdown-item" href="orders.php">Lịch sử mua hàng</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item text-danger" href="logout.php">Đăng xuất</a></li>
+            </ul>
+          </div>
+        <?php else: ?>
+          <a href="login.php" class="btn btn-sm btn-outline-primary">Đăng nhập</a>
+          <a href="register.php" class="btn btn-sm btn-brand">Đăng ký</a>
+        <?php endif; ?>
+      </div>
     </div>
   </div>
 </nav>
