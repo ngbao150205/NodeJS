@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Admin - Quản lý mã giảm giá</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        background-color: #f3f4f6;
+      }
+      .table-sm td,
+      .table-sm th {
+        vertical-align: middle;
+      }
+      code {
+        font-size: 0.85rem;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm sticky-top">
+      <div class="container">
+        <a class="navbar-brand fw-bold" href="/admin/dashboard.html">Admin Panel</a>
+        <button
+          class="navbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#adminNavbar"
+        >
+          <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="adminNavbar">
+          <ul class="navbar-nav me-auto small">
+            <li class="nav-item">
+              <a class="nav-link" href="/index.html">Trang khách</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/admin/dashboard.html">Dashboard</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/admin/products.html">Products</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/admin/users.html">Users</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/admin/orders.html">Orders</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link active" href="/admin/discounts.html">Discounts</a>
+            </li>
+          </ul>
+
+          <ul class="navbar-nav ms-auto small" id="auth-nav">
+            <!-- common.js render -->
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+    <main class="container py-4">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="h4 mb-0">Quản lý mã giảm giá</h1>
+        <button
+          class="btn btn-primary btn-sm"
+          data-bs-toggle="modal"
+          data-bs-target="#discountCreateModal"
+        >
+          + Tạo mã mới
+        </button>
+      </div>
+
+      <!-- Filter -->
+      <form id="discount-filter-form" class="row g-2 mb-3 small">
+        <div class="col-md-4">
+          <input
+            type="text"
+            id="discount-filter-q"
+            class="form-control form-control-sm"
+            placeholder="Tìm theo mã giảm giá..."
+          />
+        </div>
+        <div class="col-md-2 d-grid">
+          <button type="submit" class="btn btn-outline-secondary btn-sm">
+            Lọc
+          </button>
+        </div>
+      </form>
+
+      <!-- Table -->
+      <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle">
+          <thead class="table-light small">
+            <tr>
+              <th>ID</th>
+              <th>Mã</th>
+              <th>Giảm (%)</th>
+              <th>Đã dùng / Tối đa (hiệu lực)</th>
+              <th>Tối đa (DB)</th>
+              <th>Số đơn đã dùng</th>
+              <th>Ngày tạo</th>
+              <th class="text-end">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody id="discounts-tbody" class="small">
+            <!-- discounts.js render -->
+          </tbody>
+        </table>
+      </div>
+
+      <nav
+        aria-label="Discounts pagination"
+        class="mt-2"
+      >
+        <ul
+          class="pagination pagination-sm justify-content-center"
+          id="discounts-pagination"
+        >
+          <!-- discounts.js render -->
+        </ul>
+      </nav>
+    </main>
+
+    <footer class="bg-dark text-light text-center py-3 small mt-4 shadow-sm">
+      &copy; 2025 - Admin - Cửa hàng PC / Laptop.
+    </footer>
+
+    <!-- Modal tạo mã giảm giá -->
+    <div
+      class="modal fade"
+      id="discountCreateModal"
+      tabindex="-1"
+      aria-labelledby="discountCreateModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <form id="discount-create-form">
+            <div class="modal-header py-2">
+              <h5 class="modal-title h6" id="discountCreateModalLabel">
+                Tạo mã giảm giá mới
+              </h5>
+              <button
+                type="button"
+                class="btn-close"
+                data-bs-dismiss="modal"
+                aria-label="Đóng"
+              ></button>
+            </div>
+            <div class="modal-body small">
+              <div class="mb-2">
+                <label class="form-label">Mã giảm giá (5 ký tự)</label>
+                <div class="input-group input-group-sm">
+                  <input
+                    type="text"
+                    class="form-control form-control-sm"
+                    id="discount-code"
+                    maxlength="5"
+                    placeholder="VD: SALE1"
+                  />
+                  <button
+                    type="button"
+                    class="btn btn-outline-secondary btn-sm"
+                    id="btn-generate-discount-code"
+                  >
+                    Random
+                  </button>
+                </div>
+                <div class="form-text">
+                  Gồm 5 ký tự chữ hoa và số (A-Z, 0-9).
+                </div>
+              </div>
+
+              <div class="mb-2">
+                <label class="form-label">Phần trăm giảm (%)</label>
+                <input
+                  type="number"
+                  class="form-control form-control-sm"
+                  id="discount-percent"
+                  min="1"
+                  max="100"
+                  value="10"
+                />
+              </div>
+
+              <div class="mb-2">
+                <label class="form-label">Số lượt sử dụng tối đa</label>
+                <input
+                  type="number"
+                  class="form-control form-control-sm"
+                  id="discount-max-uses"
+                  min="1"
+                  value="10"
+                />
+                <div class="form-text">
+                  Hệ thống hiện giới hạn tối đa <strong>10 lượt hiệu lực</strong>
+                  cho mỗi mã (theo logic validate/checkout hiện tại).
+                </div>
+              </div>
+
+              <div
+                id="discount-create-message"
+                class="small text-muted"
+              ></div>
+            </div>
+            <div class="modal-footer py-2">
+              <button
+                type="button"
+                class="btn btn-secondary btn-sm"
+                data-bs-dismiss="modal"
+              >
+                Đóng
+              </button>
+              <button type="submit" class="btn btn-primary btn-sm">
+                Lưu mã
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal danh sách đơn hàng áp dụng mã giảm giá -->
+    <div
+      class="modal fade"
+      id="discountOrdersModal"
+      tabindex="-1"
+      aria-labelledby="discountOrdersModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header py-2">
+            <h5 class="modal-title h6" id="discount-orders-modal-title">
+              Đơn hàng đã áp dụng mã
+            </h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Đóng"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <div
+              id="discount-orders-modal-info"
+              class="small mb-1"
+            ></div>
+            <div
+              id="discount-orders-modal-message"
+              class="small mb-2 text-muted"
+            ></div>
+
+            <div class="table-responsive small">
+              <table class="table table-sm align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>Mã đơn</th>
+                    <th>Khách hàng</th>
+                    <th>Trạng thái</th>
+                    <th>Thời gian</th>
+                    <th class="text-end">Tổng tiền</th>
+                  </tr>
+                </thead>
+                <tbody id="discount-orders-tbody">
+                  <!-- discounts.js render -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="modal-footer py-2 small">
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              data-bs-dismiss="modal"
+            >
+              Đóng
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/common.js"></script>
+    <script src="/admin/admin-common.js"></script>
+    <script src="/admin/discounts.js"></script>
+  </body>
+</html>

@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>Chi tiết sản phẩm - Cửa hàng PC / Laptop</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
+
+  <style>
+    body {
+      background-color: #f3f4f6;
+    }
+
+    /* Ảnh chính: hiển thị gọn trong khung, không tràn màn hình */
+    .product-main-img {
+      width: 100%;
+      background: #e9ecef;
+      border-radius: 0.75rem;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.5rem;
+      min-height: 220px;
+    }
+
+    .product-main-img img.main-image {
+      max-width: 100%;
+      max-height: 60vh; /* không cao quá 60% màn hình */
+      height: auto;
+      width: auto;
+      object-fit: contain;
+      cursor: zoom-in; /* để user biết có thể phóng to */
+    }
+
+    @media (max-width: 576px) {
+      .product-main-img img.main-image {
+        max-height: 45vh;
+      }
+    }
+
+    /* Nút mũi tên trái/phải */
+    .main-img-nav-btn {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      border: none;
+      background: rgba(0, 0, 0, 0.4);
+      color: #fff;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 5;
+    }
+
+    .main-img-nav-btn.left {
+      left: 8px;
+    }
+
+    .main-img-nav-btn.right {
+      right: 8px;
+    }
+
+    /* Thumbnail */
+    .thumb-img {
+      width: 100%;
+      height: 80px;
+      background: #e9ecef;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      border: 2px solid transparent;
+    }
+
+    .thumb-img img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .thumb-img.active {
+      border-color: #0d6efd;
+    }
+
+    .product-title-detail {
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+
+    .product-price-detail {
+      color: #dc3545;
+      font-weight: 700;
+      font-size: 1.1rem;
+    }
+
+    .rating-stars {
+      color: #f1c40f;
+      font-size: 1rem;
+    }
+
+    .short-desc {
+      white-space: pre-line;
+      font-size: 0.9rem;
+    }
+
+    .long-desc {
+      white-space: pre-line;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm sticky-top">
+    <div class="container">
+      <a class="navbar-brand fw-bold" href="/index.html">Cửa hàng PC / Laptop</a>
+      <button
+        class="navbar-toggler"
+        type="button"
+        data-bs-toggle="collapse"
+        data-bs-target="#navbarNav"
+      >
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav me-auto small">
+          <li class="nav-item">
+            <a class="nav-link" href="/index.html">Trang chủ</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/products.html">Sản phẩm</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/cart.html">Giỏ hàng</a>
+          </li>
+        </ul>
+        <ul class="navbar-nav ms-auto small" id="auth-nav">
+          <!-- common.js sẽ render -->
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container py-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="small mb-3">
+      <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item"><a href="/index.html">Trang chủ</a></li>
+        <li class="breadcrumb-item"><a href="/products.html">Sản phẩm</a></li>
+        <li class="breadcrumb-item active" aria-current="page" id="breadcrumb-product-name">
+          Chi tiết
+        </li>
+      </ol>
+    </nav>
+
+    <!-- Thông tin chính -->
+    <section class="row g-4 mb-4" id="product-info-section">
+      <!-- Hình ảnh -->
+      <div class="col-lg-6">
+        <div class="product-main-img mb-2" id="main-image-wrapper">
+          <span class="text-muted small">Đang tải hình ảnh...</span>
+        </div>
+        <div class="row g-2" id="thumb-images-row">
+          <!-- JS render thumbnails -->
+        </div>
+      </div>
+
+      <!-- Thông tin chung -->
+      <div class="col-lg-6">
+        <h1 class="product-title-detail mb-1" id="product-name">Tên sản phẩm</h1>
+        <div class="small text-muted mb-2" id="product-brand">
+          Thương hiệu:
+        </div>
+
+        <div class="d-flex align-items-center mb-2 small">
+          <div class="rating-stars me-2" id="product-rating-stars">
+            ★★★★☆
+          </div>
+          <div class="text-muted" id="product-rating-summary">
+            0 đánh giá
+          </div>
+        </div>
+
+        <div class="product-price-detail mb-2" id="product-price-range">
+          Giá: ...
+        </div>
+
+        <div class="small text-muted mb-2" id="product-sold">
+          Đã bán: ...
+        </div>
+
+        <div class="mb-3">
+          <h6 class="mb-1">Mô tả ngắn</h6>
+          <div class="short-desc border rounded p-2 bg-white" id="product-short-desc">
+            ...
+          </div>
+        </div>
+
+        <!-- Biến thể -->
+        <div class="mb-3">
+          <h6 class="mb-1">Biến thể sản phẩm</h6>
+          <div id="variant-list">
+            <!-- JS render list biến thể -->
+          </div>
+        </div>
+
+        <!-- Số lượng -->
+        <div class="mb-3 d-flex align-items-center gap-2">
+          <label for="detail-qty" class="small mb-0">Số lượng:</label>
+          <input
+            type="number"
+            id="detail-qty"
+            class="form-control form-control-sm"
+            style="width: 90px"
+            min="1"
+            value="1"
+          />
+        </div>
+
+        <!-- Nút giỏ hàng -->
+        <div class="d-flex gap-2">
+          <button class="btn btn-primary btn-sm" id="btn-add-to-cart" disabled>
+            Thêm vào giỏ
+          </button>
+          <button class="btn btn-outline-secondary btn-sm" id="btn-buy-now" disabled>
+            Mua ngay
+          </button>
+        </div>
+        <div class="small text-muted mt-1">
+          Bạn có thể thêm sản phẩm vào giỏ hàng hoặc mua ngay sản phẩm này.
+        </div>
+      </div>
+    </section>
+
+    <!-- Mô tả chi tiết -->
+    <section class="mb-4">
+      <h5 class="mb-2">Mô tả chi tiết</h5>
+      <div class="card shadow-sm">
+        <div class="card-body long-desc" id="product-descriptions">
+          Chưa có mô tả chi tiết.
+        </div>
+      </div>
+    </section>
+
+    <!-- Đánh giá & bình luận -->
+    <section class="mb-4">
+      <div class="row g-3">
+        <!-- Tổng quan đánh giá + form đánh giá -->
+        <div class="col-md-4">
+          <div class="card shadow-sm mb-3">
+            <div class="card-body">
+              <h5 class="card-title h6">Đánh giá sản phẩm</h5>
+              <div class="display-6 rating-stars mb-1" id="rating-summary-stars-large">
+                ★★★★★
+              </div>
+              <div class="small mb-2" id="rating-summary-text">
+                0.0 / 5 (0 đánh giá)
+              </div>
+              <div class="small text-muted mb-2">
+                Hãy chia sẻ cảm nhận của bạn để mọi người cùng tham khảo.
+              </div>
+
+              <div id="rating-form-wrapper">
+                <!-- JS: nếu chưa đăng nhập -> yêu cầu đăng nhập, nếu đăng nhập -> form -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Danh sách đánh giá + bình luận -->
+        <div class="col-md-8">
+          <div class="card shadow-sm mb-3">
+            <div class="card-body">
+              <h5 class="card-title h6">Danh sách đánh giá</h5>
+              <div id="rating-list">
+                <!-- JS render -->
+              </div>
+            </div>
+          </div>
+
+          <div class="card shadow-sm">
+            <div class="card-body">
+              <h5 class="card-title h6">Bình luận</h5>
+              <div id="comment-form-wrapper" class="mb-3">
+                <!-- JS render form bình luận -->
+              </div>
+              <div id="comment-list">
+                <!-- JS render danh sách bình luận -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="bg-primary text-light text-center py-3 small mt-4 shadow-sm">
+    &copy; 2025 - Cửa hàng PC / Laptop.
+  </footer>
+
+  <!-- Modal phóng to hình ảnh -->
+  <div class="modal fade" id="imageZoomModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+      <div class="modal-content bg-transparent border-0">
+        <button
+          type="button"
+          class="btn-close btn-close-white ms-auto me-2 mt-2"
+          data-bs-dismiss="modal"
+          aria-label="Close"
+        ></button>
+        <div class="modal-body d-flex justify-content-center align-items-center">
+          <img id="zoom-image" src="" alt="Zoom image" class="img-fluid rounded shadow" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="/common.js"></script>
+  <script src="/cart.js"></script>
+
+  <!-- Nếu chưa cấu hình Socket.IO ở server và không muốn lỗi console,
+       có thể comment dòng dưới lại -->
+<!--  <script src="/socket.io/socket.io.js"></script>   -->
+
+  <script src="/product-detail.js"></script>
+</body>
+</html>

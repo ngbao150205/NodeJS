@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>Hồ sơ của tôi - Cửa hàng PC / Laptop</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+    <div class="container">
+      <a class="navbar-brand fw-bold" href="/index.html">Cửa hàng PC / Laptop</a>
+      <button
+        class="navbar-toggler"
+        type="button"
+        data-bs-toggle="collapse"
+        data-bs-target="#navbarNav"
+      >
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav me-auto small">
+          <li class="nav-item">
+            <a class="nav-link" href="/index.html">Trang chủ</a>
+          </li>
+        </ul>
+        <ul class="navbar-nav ms-auto small" id="auth-nav">
+          <!-- common.js sẽ render -->
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container py-4">
+    <h1 class="h4 mb-4">Hồ sơ của tôi</h1>
+
+    <div class="row g-3">
+      <!-- Thông tin cá nhân -->
+      <div class="col-md-6">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title">Thông tin cá nhân</h5>
+            <p class="small text-muted">
+              Cập nhật họ tên, xem email, loại tài khoản và điểm tích luỹ.
+            </p>
+
+            <form id="profile-form">
+              <div class="mb-2">
+                <label class="form-label">Email (không thể đổi)</label>
+                <input type="email" class="form-control form-control-sm" id="profile-email" disabled />
+              </div>
+              <div class="mb-2">
+                <label class="form-label">Họ tên đầy đủ</label>
+                <input type="text" class="form-control form-control-sm" id="profile-fullname" required />
+              </div>
+              <div class="mb-2">
+                <label class="form-label">Loại tài khoản</label>
+                <input type="text" class="form-control form-control-sm" id="profile-provider" disabled />
+              </div>
+              <div class="mb-2">
+                <label class="form-label">Điểm tích luỹ</label>
+                <input type="text" class="form-control form-control-sm" id="profile-points" disabled />
+              </div>
+
+              <div class="text-danger small mb-1" id="profile-error"></div>
+              <div class="text-success small mb-1" id="profile-success"></div>
+
+              <button type="submit" class="btn btn-primary btn-sm">Lưu thay đổi</button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- Đổi mật khẩu -->
+      <div class="col-md-6">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title">Thay đổi / thiết lập mật khẩu</h5>
+            <p class="small text-muted">
+              Nếu bạn đăng nhập bằng Google, bạn có thể đặt mật khẩu để lần sau đăng nhập bằng email + mật khẩu.
+            </p>
+
+            <form id="password-form">
+              <div class="mb-2">
+                <label class="form-label">Mật khẩu hiện tại (bỏ trống nếu chưa từng đặt)</label>
+                <input type="password" class="form-control form-control-sm" name="current_password" />
+              </div>
+              <div class="mb-2">
+                <label class="form-label">Mật khẩu mới</label>
+                <input type="password" class="form-control form-control-sm" name="new_password" required />
+              </div>
+              <div class="mb-2">
+                <label class="form-label">Nhập lại mật khẩu mới</label>
+                <input type="password" class="form-control form-control-sm" name="confirm_password" required />
+              </div>
+
+              <div class="text-danger small mb-1" id="password-error"></div>
+              <div class="text-success small mb-1" id="password-success"></div>
+
+              <button type="submit" class="btn btn-warning btn-sm">Đổi mật khẩu</button>
+
+              <div class="small mt-2 text-end">
+                <a href="/forgot-password.html">Quên mật khẩu?</a>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Địa chỉ giao hàng -->
+    <div class="card shadow-sm mt-4">
+      <div class="card-body">
+        <h5 class="card-title">Địa chỉ giao hàng</h5>
+        <p class="small text-muted">
+          Quản lý nhiều địa chỉ giao hàng, chọn một địa chỉ mặc định khi thanh toán.
+        </p>
+
+        <div id="addresses-list" class="mb-3">
+          <!-- profile.js sẽ render danh sách địa chỉ -->
+        </div>
+
+        <hr />
+
+        <h6 class="mb-2" id="address-form-title">Thêm địa chỉ mới</h6>
+        <form id="address-form" class="row g-2">
+          <input type="hidden" id="address-id" />
+          <div class="col-md-3">
+            <label class="form-label">Nhãn (VD: Nhà, Công ty)</label>
+            <input type="text" class="form-control form-control-sm" id="address-label" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Tên người nhận</label>
+            <input type="text" class="form-control form-control-sm" id="address-receiver" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Số điện thoại</label>
+            <input type="text" class="form-control form-control-sm" id="address-phone" />
+          </div>
+          <div class="col-md-3 d-flex align-items-end">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="address-is-default" />
+              <label class="form-check-label small" for="address-is-default">
+                Đặt làm mặc định
+              </label>
+            </div>
+          </div>
+
+          <div class="col-12 col-md-6">
+            <label class="form-label">Địa chỉ chi tiết</label>
+            <input type="text" class="form-control form-control-sm" id="address-details" required />
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label">Quận / Huyện</label>
+            <input type="text" class="form-control form-control-sm" id="address-district" required />
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label">Tỉnh / Thành phố</label>
+            <input type="text" class="form-control form-control-sm" id="address-city" required />
+          </div>
+
+          <div class="col-12">
+            <div class="text-danger small mb-1" id="address-error"></div>
+            <div class="text-success small mb-1" id="address-success"></div>
+          </div>
+
+          <div class="col-12">
+            <button type="submit" class="btn btn-success btn-sm">Lưu địa chỉ</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="address-cancel-btn">
+              Hủy sửa
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bg-dark text-light text-center py-3 small mt-4">
+    &copy; 2025 - Cửa hàng PC / Laptop.
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="/common.js"></script>
+  <script src="/profile.js"></script>
+</body>
+</html>

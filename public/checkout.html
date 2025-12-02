@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>Thanh toán - Cửa hàng PC / Laptop</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
+
+  <style>
+    body {
+      background-color: #f3f4f6;
+    }
+
+    .checkout-step {
+      display: none;
+    }
+    .checkout-step.active {
+      display: block;
+    }
+
+    #checkout-steps .nav-link.done {
+      background-color: #198754;
+      color: #fff;
+    }
+    #checkout-steps .nav-link.disabled {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+
+    .summary-items-list {
+      max-height: 220px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm sticky-top">
+    <div class="container">
+      <a class="navbar-brand fw-bold" href="/index.html">Cửa hàng PC / Laptop</a>
+      <button
+        class="navbar-toggler"
+        type="button"
+        data-bs-toggle="collapse"
+        data-bs-target="#navbarNav"
+      >
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav me-auto small">
+          <li class="nav-item">
+            <a class="nav-link" href="/index.html">Trang chủ</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/products.html">Sản phẩm</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/cart.html">Giỏ hàng</a>
+          </li>
+        </ul>
+        <ul class="navbar-nav ms-auto small" id="auth-nav">
+          <!-- common.js sẽ render -->
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container py-4">
+    <div class="row g-3">
+      <!-- Cột chính: quy trình nhiều bước -->
+      <section class="col-lg-8">
+        <div class="card shadow-sm mb-3">
+          <div class="card-body">
+            <ul class="nav nav-pills nav-justified small" id="checkout-steps">
+              <li class="nav-item">
+                <span class="nav-link active" data-step="1">1. Giỏ hàng</span>
+              </li>
+              <li class="nav-item">
+                <span class="nav-link disabled" data-step="2">2. Giao hàng</span>
+              </li>
+              <li class="nav-item">
+                <span class="nav-link disabled" data-step="3">3. Thanh toán & Xác nhận</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- BƯỚC 1: Xem lại sản phẩm -->
+        <div id="checkout-step-1" class="card shadow-sm checkout-step active">
+          <div class="card-body">
+            <h5 class="h6 mb-3">Bước 1: Xem lại sản phẩm</h5>
+
+            <div class="table-responsive small mb-3">
+              <table class="table align-middle">
+                <thead>
+                  <tr>
+                    <th>Sản phẩm</th>
+                    <th class="text-center" style="width: 90px;">Số lượng</th>
+                    <th class="text-end" style="width: 120px;">Đơn giá</th>
+                    <th class="text-end" style="width: 120px;">Thành tiền</th>
+                  </tr>
+                </thead>
+                <tbody id="checkout-items-body">
+                  <!-- checkout.js render -->
+                </tbody>
+              </table>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center small">
+              <a href="/cart.html" class="text-decoration-none">
+                &laquo; Quay lại giỏ hàng
+              </a>
+              <button type="button" class="btn btn-primary btn-sm" id="btn-step1-next">
+                Tiếp tục
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- BƯỚC 2: Thông tin giao hàng -->
+        <div id="checkout-step-2" class="card shadow-sm checkout-step">
+          <div class="card-body">
+            <h5 class="h6 mb-3">Bước 2: Thông tin giao hàng</h5>
+
+            <div
+              class="mb-3 small"
+              id="saved-address-container"
+              style="display: none;"
+            >
+              <label class="form-label mb-1">Chọn địa chỉ đã lưu</label>
+              <select
+                class="form-select form-select-sm"
+                id="checkout-address-select"
+              >
+                <!-- checkout.js sẽ render -->
+              </select>
+              <div class="form-text">
+                Chọn một địa chỉ để tự động điền vào các trường bên dưới. Bạn vẫn
+                có thể chỉnh sửa lại trước khi tiếp tục.
+              </div>
+            </div>
+
+            <form id="checkout-shipping-form" class="small">
+              <div class="row g-2">
+                <div class="col-md-6">
+                  <label class="form-label mb-1">Email</label>
+                  <input
+                    type="email"
+                    class="form-control form-control-sm"
+                    id="checkout-email"
+                    required
+                  />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label mb-1">Họ tên (chủ tài khoản / người mua)</label>
+                  <input
+                    type="text"
+                    class="form-control form-control-sm"
+                    id="checkout-full-name"
+                    required
+                  />
+                </div>
+
+                <div class="col-md-6">
+                  <label class="form-label mb-1">Người nhận hàng</label>
+                  <input
+                    type="text"
+                    class="form-control form-control-sm"
+                    id="checkout-receiver-name"
+                    required
+                  />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label mb-1">Số điện thoại</label>
+                  <input
+                    type="text"
+                    class="form-control form-control-sm"
+                    id="checkout-phone"
+                    required
+                  />
+                </div>
+
+                <div class="col-12">
+                  <label class="form-label mb-1">Địa chỉ chi tiết</label>
+                  <input
+                    type="text"
+                    class="form-control form-control-sm"
+                    id="checkout-address-details"
+                    placeholder="Số nhà, tên đường..."
+                    required
+                  />
+                </div>
+
+                <div class="col-md-6">
+                  <label class="form-label mb-1">Quận / Huyện</label>
+                  <input
+                    type="text"
+                    class="form-control form-control-sm"
+                    id="checkout-district"
+                    required
+                  />
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label mb-1">Tỉnh / Thành phố</label>
+                  <input
+                    type="text"
+                    class="form-control form-control-sm"
+                    id="checkout-city"
+                    required
+                  />
+                </div>
+
+                <div class="col-12">
+                  <div class="form-check">
+                    <input
+                      class="form-check-input"
+                      type="checkbox"
+                      id="checkout-save-address"
+                    />
+                    <label class="form-check-label" for="checkout-save-address">
+                      Lưu địa chỉ này làm địa chỉ mặc định (nếu bạn có tài khoản)
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="d-flex justify-content-between align-items-center mt-3">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-step2-prev">
+                  &laquo; Quay lại
+                </button>
+                <button type="submit" class="btn btn-primary btn-sm" id="btn-step2-next">
+                  Tiếp tục
+                </button>
+              </div>
+
+              <div id="checkout-shipping-message" class="small text-danger mt-2"></div>
+            </form>
+          </div>
+        </div>
+
+        <!-- BƯỚC 3: Thanh toán & Xác nhận -->
+        <div id="checkout-step-3" class="card shadow-sm checkout-step">
+          <div class="card-body">
+            <h5 class="h6 mb-3">Bước 3: Thanh toán & Xác nhận</h5>
+
+            <!-- Thông tin giao hàng đã nhập -->
+            <div class="mb-3 small" id="confirm-shipping-info">
+              <!-- checkout.js render -->
+            </div>
+
+            <hr />
+
+            <!-- Phương thức thanh toán -->
+            <div class="mb-3 small">
+              <h6 class="h6">Phương thức thanh toán</h6>
+              <div class="form-check mb-1">
+                <input
+                  class="form-check-input"
+                  type="radio"
+                  name="payment_method"
+                  id="pm-cod"
+                  value="cod"
+                  checked
+                />
+                <label class="form-check-label" for="pm-cod">
+                  Thanh toán khi nhận hàng (COD)
+                </label>
+              </div>
+              <div class="form-check mb-1">
+                <input
+                  class="form-check-input"
+                  type="radio"
+                  name="payment_method"
+                  id="pm-bank"
+                  value="bank"
+                  disabled
+                />
+              </div>
+            </div>
+
+            <!-- Tóm tắt sản phẩm -->
+            <div class="mb-3 small" id="confirm-items-summary">
+              <!-- checkout.js render -->
+            </div>
+
+            <div class="d-flex justify-content_between align-items-center">
+              <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-step3-prev">
+                &laquo; Quay lại
+              </button>
+              <button type="button" class="btn btn-success btn-sm" id="btn-place-order">
+                Đặt hàng
+              </button>
+            </div>
+
+            <div id="checkout-message" class="small mt-3"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Cột phải: Tóm tắt giỏ hàng -->
+      <aside class="col-lg-4">
+        <div class="card shadow-sm sticky-top" style="top: 90px;">
+          <div class="card-body small">
+            <h6 class="mb-3">Tóm tắt đơn hàng</h6>
+
+            <div class="summary-items-list mb-3" id="summary-items-list">
+              <!-- checkout.js render danh sách rút gọn -->
+            </div>
+
+            <div class="d-flex justify-content-between mb-1">
+              <span>Số lượng sản phẩm</span>
+              <span id="summary-total-qty">0</span>
+            </div>
+            <div class="d-flex justify-content-between mb-1">
+              <span>Tạm tính</span>
+              <span id="summary-subtotal">0₫</span>
+            </div>
+            <div class="d-flex justify-content-between mb-1">
+              <span>Thuế (10%)</span>
+              <span id="summary-tax">0₫</span>
+            </div>
+            <div class="d-flex justify-content-between mb-1">
+              <span>Phí vận chuyển</span>
+              <span id="summary-shipping">0₫</span>
+            </div>
+            <div class="d-flex justify-content-between mb-1">
+              <span>Giảm giá</span>
+              <span id="summary-discount">0₫</span>
+            </div>
+
+            <hr class="my-2" />
+
+            <div class="d-flex justify-content-between fw-semibold mb-2">
+              <span>Tổng thanh toán</span>
+              <span id="summary-total-amount">0₫</span>
+            </div>
+
+            <!-- Ô nhập mã giảm giá -->
+            <div class="mb-2">
+              <label class="form-label mb-1">Mã giảm giá</label>
+              <div class="input-group input-group-sm">
+                <input
+                  type="text"
+                  class="form-control"
+                  id="coupon-code-input"
+                  maxlength="5"
+                  placeholder="Nhập mã (5 ký tự)"
+                />
+                <button
+                  class="btn btn-outline-secondary"
+                  type="button"
+                  id="btn-apply-coupon"
+                >
+                  Áp dụng
+                </button>
+              </div>
+              <div
+                class="d-flex justify-content-between align-items-center mt-1"
+              >
+                <div id="coupon-message" class="small text-muted">
+                  Nhập mã và bấm Áp dụng để kiểm tra tính hợp lệ.
+                </div>
+                <button
+                  type="button"
+                  class="btn btn-link btn-sm p-0 d-none"
+                  id="btn-remove-coupon"
+                >
+                  Bỏ mã
+                </button>
+              </div>
+            </div>
+
+            <!-- Điểm thưởng khách hàng thân thiết -->
+            <div class="mt-2" id="loyalty-section">
+              <!-- Text hiển thị số điểm -->
+              <div id="loyalty-info" class="small text-muted mb-1">
+                <!-- checkout.js sẽ ghi vào đây: "Bạn có X điểm (tương đương X.000₫)" hoặc "Bạn chưa đăng nhập nên không thể sử dụng điểm thưởng." -->
+              </div>
+
+              <!-- Checkbox dùng điểm, mặc định ẩn, chỉ hiện khi có điểm -->
+              <div class="form-check" id="loyalty-wrapper" style="display: none;">
+                <input
+                  class="form-check-input"
+                  type="checkbox"
+                  id="use-loyalty-points"
+                />
+                <label class="form-check-label small" for="use-loyalty-points">
+                  Sử dụng toàn bộ điểm thưởng cho đơn này
+                </label>
+              </div>
+            </div>
+
+            <div class="alert alert-info small mb-0 mt-3">
+              Bạn có thể thanh toán với tư cách
+              <strong>khách</strong> (không cần đăng ký trước).
+              Nếu dùng cùng email sau này để đăng nhập, bạn sẽ xem lại được đơn hàng cũ.
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <footer class="bg-primary text-light text-center py-3 small mt-4 shadow-sm">
+    &copy; 2025 - Cửa hàng PC / Laptop.
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="/common.js"></script>
+  <script src="/cart.js"></script>
+  <script src="/checkout.js"></script>
+</body>
+</html>

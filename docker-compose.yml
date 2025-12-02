@@ -1,0 +1,47 @@
+
+services:
+  backend:
+    build:
+      context: .            # thư mục hiện tại: final_nodejs
+      dockerfile: Dockerfile
+    container_name: final_node_backend
+    ports:
+      - "8080:8080"         # host:container
+    env_file:
+      - .env                # dùng các biến trong file .env
+    environment:
+      - ELASTICSEARCH_URL=http://elasticsearch:9200   # 👈 CHỈ ĐỊNH URL ES CHO BACKEND
+    depends_on:
+      - db
+      - elasticsearch       # 👈 đảm bảo ES chạy trước backend
+    restart: unless-stopped
+
+  db:
+    image: mysql:8.0
+    container_name: final_node_db
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword   # trùng với DB_PASSWORD ở .env nếu dùng root
+      MYSQL_DATABASE: estorepc
+    ports:
+      - "3307:3306"         # để connect từ máy host
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./db:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+    container_name: final_node_es
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"                 # host:container
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    restart: unless-stopped
+
+volumes:
+  db_data:
+  es_data:
